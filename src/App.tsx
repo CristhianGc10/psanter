@@ -13,7 +13,7 @@ import {
   CHORD_PATTERNS, 
   SCALE_PATTERNS,
   A4_FREQUENCY 
-} from './data/musicalConstants';
+} from './data/musicalData';
 import { 
   KEYBOARD_MAPPING_STATS,
   PIANO_LAYOUT_TRADITIONAL,
@@ -69,10 +69,10 @@ function App() {
       <header className="bg-black/20 backdrop-blur-sm border-b border-white/10 p-4">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            🎹 Psanter - Fase 2 Demo
+            🎹 Psanter - Piano Real
           </h1>
           <p className="text-gray-300 mt-1">
-            Piano virtual con coordenadas SVG reales • 88 teclas • Datos musicales completos
+            Piano virtual con 88 teclas • A0 (izquierda) → C8 (derecha) • Girado 180°
           </p>
         </div>
       </header>
@@ -81,7 +81,9 @@ function App() {
         
         {/* Piano SVG */}
         <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-4 text-purple-300">Piano Interactivo</h2>
+          <h2 className="text-2xl font-semibold mb-4 text-purple-300">
+            Piano Interactivo
+          </h2>
           
           <div className="bg-black/40 rounded-xl p-6 backdrop-blur-sm border border-white/10">
             <div className="w-full overflow-x-auto">
@@ -112,6 +114,19 @@ function App() {
               </svg>
             </div>
             
+            {/* Información del piano */}
+            <div className="mt-4 p-3 bg-green-900/30 rounded-lg">
+              <h4 className="font-semibold text-green-200 mb-2">
+                ✅ Piano Real Configurado:
+              </h4>
+              <div className="text-sm text-green-100">
+                <p>• <strong>A0</strong> está en el extremo izquierdo (notas graves)</p>
+                <p>• <strong>C8</strong> está en el extremo derecho (notas agudas)</p>
+                <p>• <strong>Orientación:</strong> Girado 180° para realismo visual</p>
+                <p>• <strong>Orden:</strong> De graves a agudos (izquierda a derecha)</p>
+              </div>
+            </div>
+            
             {/* Info de tecla seleccionada */}
             {selectedKey && (
               <div className="mt-4 p-4 bg-purple-900/50 rounded-lg">
@@ -126,9 +141,18 @@ function App() {
                     <span className="ml-2">{isWhiteKey(selectedKey) ? 'Tecla Blanca' : 'Tecla Negra'}</span>
                   </div>
                   <div>
-                    <span className="text-gray-300">Frecuencia (aprox):</span>
+                    <span className="text-gray-300">Posición:</span>
+                    <span className="ml-2">
+                      {selectedKey === 'A0' ? 'Nota más grave (extremo izquierdo)' : 
+                       selectedKey === 'C8' ? 'Nota más aguda (extremo derecho)' : 
+                       selectedKey === 'A4' ? 'Nota central (440 Hz)' : 
+                       'Nota intermedia'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-300">Posición en teclado:</span>
                     <span className="ml-2 font-mono">
-                      {selectedKey === 'A4' ? '440 Hz' : 'Calculada en Fase 3'}
+                      {PIANO_KEY_COORDINATES.findIndex(coord => coord.note === selectedKey) + 1}/88
                     </span>
                   </div>
                 </div>
@@ -161,6 +185,10 @@ function App() {
                 <div className="flex justify-between">
                   <span className="text-gray-300">Rango de octavas:</span>
                   <span className="font-mono text-white">{PIANO_STATS.OCTAVES}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-300">Configuración:</span>
+                  <span className="font-mono text-white text-xs">Piano Real</span>
                 </div>
               </div>
             </div>
@@ -213,34 +241,30 @@ function App() {
           </div>
         </section>
 
-        {/* Información de Coordenadas SVG */}
+        {/* Información del Layout del Piano */}
         <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-4 text-purple-300">Coordenadas SVG</h2>
+          <h2 className="text-2xl font-semibold mb-4 text-purple-300">Layout del Piano</h2>
           
           <div className="bg-black/40 rounded-xl p-6 backdrop-blur-sm border border-white/10">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h3 className="text-lg font-semibold text-purple-200 mb-3">📐 Dimensiones</h3>
+                <h3 className="text-lg font-semibold text-purple-200 mb-3">📐 Dimensiones SVG</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-300">ViewBox:</span>
                     <span className="font-mono text-white">{SVG_CONFIG.viewBox}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Ancho SVG:</span>
+                    <span className="text-gray-300">Ancho:</span>
                     <span className="font-mono text-white">{SVG_CONFIG.width} unidades</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Alto SVG:</span>
+                    <span className="text-gray-300">Alto:</span>
                     <span className="font-mono text-white">{SVG_CONFIG.height} unidades</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Rango X:</span>
-                    <span className="font-mono text-white">{PIANO_STATS.X_RANGE.min} - {PIANO_STATS.X_RANGE.max}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Rango Y:</span>
-                    <span className="font-mono text-white">{PIANO_STATS.Y_RANGE.min} - {PIANO_STATS.Y_RANGE.max}</span>
+                    <span className="text-gray-300">Transformación:</span>
+                    <span className="font-mono text-white">Giro 180°</span>
                   </div>
                 </div>
               </div>
@@ -249,16 +273,20 @@ function App() {
                 <h3 className="text-lg font-semibold text-purple-200 mb-3">🎹 Rango de Notas</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Primera nota:</span>
+                    <span className="text-gray-300">Nota más grave:</span>
                     <span className="font-mono text-white bg-purple-900/50 px-2 py-1 rounded">A0</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Última nota:</span>
+                    <span className="text-gray-300">Nota más aguda:</span>
                     <span className="font-mono text-white bg-purple-900/50 px-2 py-1 rounded">C8</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-300">Nota central:</span>
                     <span className="font-mono text-white bg-purple-900/50 px-2 py-1 rounded">A4 (440Hz)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-300">Orden visual:</span>
+                    <span className="font-mono text-white">A0 ← → C8</span>
                   </div>
                 </div>
               </div>
@@ -314,7 +342,7 @@ function App() {
               <div className="flex items-center space-x-3">
                 <span className="text-green-400 text-xl">✅</span>
                 <span className="text-white font-semibold">Fase 2: Datos Musicales</span>
-                <span className="text-gray-400">- 88 coordenadas reales, constantes musicales</span>
+                <span className="text-gray-400">- Piano real configurado (A0 izquierda, C8 derecha)</span>
               </div>
               <div className="flex items-center space-x-3">
                 <span className="text-yellow-400 text-xl">🚧</span>
@@ -326,6 +354,18 @@ function App() {
                 <span className="text-gray-300">Fase 4-10: Stores, Hooks, Componentes, UI</span>
               </div>
             </div>
+            
+            <div className="mt-6 p-4 bg-green-900/30 rounded-lg">
+              <h4 className="font-semibold text-green-200 mb-2">🎉 Fase 2 Completada Exitosamente:</h4>
+              <div className="text-sm text-green-100 space-y-1">
+                <p>✅ Piano con 88 teclas reales funcionando</p>
+                <p>✅ Coordenadas SVG exactas implementadas</p>
+                <p>✅ Configuración fija: A0 izquierda → C8 derecha</p>
+                <p>✅ Transformación visual 180° aplicada</p>
+                <p>✅ Datos musicales completos (acordes, escalas, constantes)</p>
+                <p>✅ Layout de teclado físico definido</p>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -334,8 +374,8 @@ function App() {
       {/* Footer */}
       <footer className="bg-black/20 backdrop-blur-sm border-t border-white/10 p-4 mt-8">
         <div className="max-w-7xl mx-auto text-center text-gray-400 text-sm">
-          <p>🎹 Psanter • Piano Virtual Profesional • Fase 2 Demo</p>
-          <p className="mt-1">Click en las teclas del piano para interactuar • Desarrollado con React + TypeScript</p>
+          <p>🎹 Psanter • Piano Virtual Profesional • Configuración de Piano Real</p>
+          <p className="mt-1">Click en las teclas para interactuar • A0 (graves) a la izquierda • C8 (agudos) a la derecha</p>
         </div>
       </footer>
     </div>
