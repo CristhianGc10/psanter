@@ -1,23 +1,200 @@
+/* Importar Tailwind CSS v4 */
 @import "tailwindcss";
 
 /* Variables CSS personalizadas para el piano */
 :root {
-  --white-key-color: #ffffff;
-  --black-key-color: #2d2d2d;
-  --key-pressed-white: #e5e5e5;
-  --key-pressed-black: #1a1a1a;
-  --key-shadow: rgba(0, 0, 0, 0.2);
+  /* Colores del piano */
+  --piano-white-key: #ffffff;
+  --piano-white-key-pressed: #e0e0e0;
+  --piano-white-key-sustained: #f0f0f0;
+  --piano-black-key: #1a1a1a;
+  --piano-black-key-pressed: #404040;
+  --piano-black-key-sustained: #2a2a2a;
+  
+  /* Colores del tema */
+  --primary-purple: #8b5cf6;
+  --primary-pink: #ec4899;
+  --background-dark: #0f172a;
+  --background-card: rgba(0, 0, 0, 0.4);
+  
+  /* Dimensiones del piano */
+  --piano-height: 8rem; /* 128px */
+  --piano-border-radius: 0.5rem;
 }
 
-/* Estilos globales */
+/* Reset básico y estilos globales */
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 
+               'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  background: var(--background-dark);
   color: white;
-  overflow-x: auto;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fondo degradado animado para la aplicación */
+.gradient-bg {
+  background: linear-gradient(-45deg, #0f172a, #4c1d95, #1e293b, #581c87);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.6);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.8);
+}
+
+/* Estilos específicos del piano */
+.piano-svg {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+  transition: filter 0.3s ease;
+}
+
+.piano-svg:hover {
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
+}
+
+/* Animaciones de teclas del piano */
+.piano-key {
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.piano-key:hover {
+  filter: brightness(1.1);
+  transform: translateY(1px);
+}
+
+.piano-key:active {
+  transform: translateY(2px);
+  filter: brightness(0.9);
+}
+
+/* Estilos para estadísticas y tarjetas */
+.stats-card {
+  background: var(--background-card);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.stats-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+/* Efectos de vidrio para paneles */
+.glass-panel {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+/* Texto con degradado */
+.gradient-text {
+  background: linear-gradient(135deg, var(--primary-purple), var(--primary-pink));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Botones y elementos interactivos */
+.interactive-element {
+  transition: all 0.2s ease;
+}
+
+.interactive-element:hover {
+  transform: scale(1.05);
+}
+
+.interactive-element:active {
+  transform: scale(0.95);
+}
+
+/* Loading animation */
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive design helpers */
+@media (max-width: 768px) {
+  .piano-svg {
+    height: 6rem; /* Altura reducida en móviles */
+  }
+  
+  .stats-card {
+    padding: 1rem;
+  }
+}
+
+/* Accesibilidad */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus indicators para accesibilidad */
+.piano-key:focus {
+  outline: 2px solid var(--primary-purple);
+  outline-offset: 2px;
+}
+
+/* Utilidades personalizadas */
+.text-shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.box-shadow-purple {
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
+}
+
+/* Estados de las teclas */
+.key-pressed {
+  filter: brightness(0.8);
+  transform: translateY(1px);
+}
+
+.key-sustained {
+  filter: brightness(1.1);
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
 }

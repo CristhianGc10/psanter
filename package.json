@@ -1,37 +1,63 @@
 {
-  "name": "psanter",
+  "name": "psanter-piano-virtual",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Piano virtual",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "dev": "vite --port 3000",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "framer-motion": "^12.23.6",
-    "lucide-react": "^0.525.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "tone": "^15.1.22",
-    "zustand": "^5.0.6"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tone": "^14.7.77",
+    "zustand": "^4.4.1",
+    "framer-motion": "^10.16.4"
   },
   "devDependencies": {
-    "@eslint/js": "^9.30.1",
-    "@types/node": "^24.0.14",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^4.6.0",
-    "autoprefixer": "^10.4.21",
-    "eslint": "^9.30.1",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.20",
-    "globals": "^16.3.0",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.0.0",
-    "typescript": "~5.8.3",
-    "typescript-eslint": "^8.35.1",
-    "vite": "^7.0.4"
-  }
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitejs/plugin-react": "^4.0.3",
+    "autoprefixer": "^10.4.14",
+    "eslint": "^8.45.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.3",
+    "postcss": "^8.4.27",
+    "tailwindcss": "^4.0.0-alpha.2",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "piano",
+    "virtual-piano",
+    "music",
+    "audio",
+    "synthesizer",
+    "chord-detection",
+    "scale-detection",
+    "web-audio",
+    "tone.js",
+    "react",
+    "typescript"
+  ],
+  "author": "PSANTER Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CristhianGc10/psanter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CristhianGc10/psanter/issues"
+  },
+  "homepage": "https://github.com/CristhianGc10/psanter#readme"
 }
