@@ -4,6 +4,7 @@ import {
   SVG_CONFIG, 
   KEY_COLORS, 
   PIANO_STATS,
+  PIANO_NOTES,
   isWhiteKey,
   isBlackKey,
   getCoordinatesByNote 
@@ -63,16 +64,35 @@ function App() {
   const whiteKeys = PIANO_KEY_COORDINATES.filter(coord => coord.isWhite);
   const blackKeys = PIANO_KEY_COORDINATES.filter(coord => coord.isBlack);
 
+  // Funciones para obtener información de tecla seleccionada
+  const getSelectedKeyInfo = () => {
+    if (!selectedKey) return null;
+    
+    const keyIndex = PIANO_NOTES.indexOf(selectedKey);
+    const coord = getCoordinatesByNote(selectedKey);
+    
+    return {
+      index: keyIndex,
+      coordinate: coord,
+      isFirst: keyIndex === 0,
+      isLast: keyIndex === 87,
+      isMiddleC: selectedKey === 'C4',
+      isA440: selectedKey === 'A4'
+    };
+  };
+
+  const selectedKeyInfo = getSelectedKeyInfo();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       {/* Header */}
       <header className="bg-black/20 backdrop-blur-sm border-b border-white/10 p-4">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            🎹 Psanter - Piano Real
+            🎹 Psanter - Piano Virtual
           </h1>
           <p className="text-gray-300 mt-1">
-            Piano virtual con 88 teclas • A0 (izquierda) → C8 (derecha) • Girado 180°
+            Piano virtual con 88 teclas reales • A0 (izquierda) → C8 (derecha) • Coordenadas originales
           </p>
         </div>
       </header>
@@ -82,7 +102,7 @@ function App() {
         {/* Piano SVG */}
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4 text-purple-300">
-            Piano Interactivo
+            Piano Interactivo - Fase 2 Completada
           </h2>
           
           <div className="bg-black/40 rounded-xl p-6 backdrop-blur-sm border border-white/10">
@@ -114,46 +134,116 @@ function App() {
               </svg>
             </div>
             
-            {/* Información del piano */}
+            {/* Verificación de configuración correcta */}
             <div className="mt-4 p-3 bg-green-900/30 rounded-lg">
               <h4 className="font-semibold text-green-200 mb-2">
-                ✅ Piano Real Configurado:
+                ✅ Piano Real Configurado Correctamente:
               </h4>
-              <div className="text-sm text-green-100">
-                <p>• <strong>A0</strong> está en el extremo izquierdo (notas graves)</p>
-                <p>• <strong>C8</strong> está en el extremo derecho (notas agudas)</p>
-                <p>• <strong>Orientación:</strong> Girado 180° para realismo visual</p>
-                <p>• <strong>Orden:</strong> De graves a agudos (izquierda a derecha)</p>
+              <div className="text-sm text-green-100 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <strong>A0 (Grave):</strong> Extremo izquierdo
+                </div>
+                <div>
+                  <strong>C8 (Agudo):</strong> Extremo derecho
+                </div>
+                <div>
+                  <strong>C4 (Middle C):</strong> Posición {PIANO_STATS.MIDDLE_C_INDEX + 1}/88
+                </div>
+                <div>
+                  <strong>A4 (440Hz):</strong> Posición {PIANO_STATS.A4_INDEX + 1}/88
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-green-200">
+                ✨ Coordenadas originales sin transformaciones - Orden visual correcto
               </div>
             </div>
             
+            {/* Navegación rápida para testing */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedKey('A0')}
+                className="px-3 py-1 bg-purple-600 rounded text-sm hover:bg-purple-500 transition-colors"
+              >
+                A0 (Más Grave)
+              </button>
+              <button
+                onClick={() => setSelectedKey('C4')}
+                className="px-3 py-1 bg-purple-600 rounded text-sm hover:bg-purple-500 transition-colors"
+              >
+                C4 (Middle C)
+              </button>
+              <button
+                onClick={() => setSelectedKey('A4')}
+                className="px-3 py-1 bg-purple-600 rounded text-sm hover:bg-purple-500 transition-colors"
+              >
+                A4 (440Hz)
+              </button>
+              <button
+                onClick={() => setSelectedKey('C8')}
+                className="px-3 py-1 bg-purple-600 rounded text-sm hover:bg-purple-500 transition-colors"
+              >
+                C8 (Más Agudo)
+              </button>
+              <button
+                onClick={() => setSelectedKey(null)}
+                className="px-3 py-1 bg-gray-600 rounded text-sm hover:bg-gray-500 transition-colors"
+              >
+                Limpiar
+              </button>
+            </div>
+            
             {/* Info de tecla seleccionada */}
-            {selectedKey && (
+            {selectedKey && selectedKeyInfo && (
               <div className="mt-4 p-4 bg-purple-900/50 rounded-lg">
-                <h3 className="font-semibold text-purple-200">Tecla Seleccionada:</h3>
-                <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
-                  <div>
-                    <span className="text-gray-300">Nota:</span>
-                    <span className="ml-2 font-mono text-white">{selectedKey}</span>
+                <h3 className="font-semibold text-purple-200 mb-3">🎹 Información de Tecla:</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-gray-300">Nota:</span>
+                      <span className="ml-2 font-mono text-white text-lg">{selectedKey}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-300">Tipo:</span>
+                      <span className="ml-2">{isWhiteKey(selectedKey) ? '⚪ Tecla Blanca' : '⚫ Tecla Negra'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-300">Octava:</span>
+                      <span className="ml-2 font-mono">{selectedKey.replace(/[A-G]#?/, '')}</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-gray-300">Tipo:</span>
-                    <span className="ml-2">{isWhiteKey(selectedKey) ? 'Tecla Blanca' : 'Tecla Negra'}</span>
+                  
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-gray-300">Posición:</span>
+                      <span className="ml-2 font-mono">{selectedKeyInfo.index + 1}/88</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-300">Índice:</span>
+                      <span className="ml-2 font-mono">[{selectedKeyInfo.index}]</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-300">Coordenada X:</span>
+                      <span className="ml-2 font-mono text-xs">
+                        {selectedKeyInfo.coordinate?.x.toFixed(1)}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-gray-300">Posición:</span>
-                    <span className="ml-2">
-                      {selectedKey === 'A0' ? 'Nota más grave (extremo izquierdo)' : 
-                       selectedKey === 'C8' ? 'Nota más aguda (extremo derecho)' : 
-                       selectedKey === 'A4' ? 'Nota central (440 Hz)' : 
-                       'Nota intermedia'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-300">Posición en teclado:</span>
-                    <span className="ml-2 font-mono">
-                      {PIANO_KEY_COORDINATES.findIndex(coord => coord.note === selectedKey) + 1}/88
-                    </span>
+                  
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-gray-300">Especial:</span>
+                      <span className="ml-2">
+                        {selectedKeyInfo.isFirst && '🎵 Nota más grave'}
+                        {selectedKeyInfo.isLast && '🎵 Nota más aguda'}
+                        {selectedKeyInfo.isMiddleC && '🎹 Middle C'}
+                        {selectedKeyInfo.isA440 && '🎼 A440 (Referencia)'}
+                        {!selectedKeyInfo.isFirst && !selectedKeyInfo.isLast && !selectedKeyInfo.isMiddleC && !selectedKeyInfo.isA440 && 'Nota regular'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-300">Estado:</span>
+                      <span className="ml-2 text-green-400">✅ Correcto</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -188,7 +278,34 @@ function App() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-300">Configuración:</span>
-                  <span className="font-mono text-white text-xs">Piano Real</span>
+                  <span className="font-mono text-white text-xs">✅ Piano Real</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Notas Especiales */}
+            <div className="bg-black/40 rounded-xl p-6 backdrop-blur-sm border border-white/10">
+              <h3 className="text-lg font-semibold text-purple-200 mb-3">🎼 Notas Clave</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-300">Nota más grave:</span>
+                  <span className="font-mono text-white bg-purple-900/50 px-2 py-1 rounded">{PIANO_STATS.LOWEST_NOTE}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-300">Nota más aguda:</span>
+                  <span className="font-mono text-white bg-purple-900/50 px-2 py-1 rounded">{PIANO_STATS.HIGHEST_NOTE}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-300">Middle C:</span>
+                  <span className="font-mono text-white bg-purple-900/50 px-2 py-1 rounded">C4</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-300">A440 (referencia):</span>
+                  <span className="font-mono text-white bg-purple-900/50 px-2 py-1 rounded">A4</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-300">Freq. referencia:</span>
+                  <span className="font-mono text-white">{A4_FREQUENCY} Hz</span>
                 </div>
               </div>
             </div>
@@ -210,85 +327,65 @@ function App() {
                   <span className="font-mono text-white">{Object.keys(SCALE_PATTERNS).length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-300">Freq. referencia:</span>
-                  <span className="font-mono text-white">{A4_FREQUENCY} Hz</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Mapeo de Teclado */}
-            <div className="bg-black/40 rounded-xl p-6 backdrop-blur-sm border border-white/10">
-              <h3 className="text-lg font-semibold text-purple-200 mb-3">⌨️ Teclado</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Teclas físicas:</span>
-                  <span className="font-mono text-white">{KEYBOARD_MAPPING_STATS.TOTAL_PHYSICAL_KEYS}</span>
+                  <span className="text-gray-300">Mapeo de teclado:</span>
+                  <span className="font-mono text-white">{KEYBOARD_MAPPING_STATS.MUSICAL_KEYS_COUNT} teclas</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-300">Para música:</span>
-                  <span className="font-mono text-white">{KEYBOARD_MAPPING_STATS.MUSICAL_KEYS_COUNT}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Especiales:</span>
-                  <span className="font-mono text-white">{KEYBOARD_MAPPING_STATS.SPECIAL_KEYS_COUNT}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Disponibles:</span>
-                  <span className="font-mono text-white">{KEYBOARD_MAPPING_STATS.AVAILABLE_FOR_NOTES}</span>
+                  <span className="text-gray-300">SVG ViewBox:</span>
+                  <span className="font-mono text-white text-xs">{SVG_CONFIG.viewBox}</span>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Información del Layout del Piano */}
+        {/* Verificación Visual del Orden */}
         <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-4 text-purple-300">Layout del Piano</h2>
+          <h2 className="text-2xl font-semibold mb-4 text-purple-300">Verificación del Orden Correcto</h2>
           
-          <div className="bg-black/40 rounded-xl p-6 backdrop-blur-sm border border-white/10">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-lg font-semibold text-purple-200 mb-3">📐 Dimensiones SVG</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">ViewBox:</span>
-                    <span className="font-mono text-white">{SVG_CONFIG.viewBox}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-black/40 rounded-xl p-6 backdrop-blur-sm border border-white/10">
+              <h3 className="text-lg font-semibold text-purple-200 mb-3">🎵 Primeras Notas (Graves)</h3>
+              <div className="space-y-1 text-sm font-mono">
+                {PIANO_NOTES.slice(0, 8).map((note, index) => (
+                  <div key={note} className="flex justify-between items-center">
+                    <span className="text-gray-300">[{index}]</span>
+                    <span 
+                      className={`px-2 py-1 rounded cursor-pointer transition-colors ${
+                        selectedKey === note 
+                          ? 'bg-purple-600 text-white' 
+                          : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                      }`}
+                      onClick={() => setSelectedKey(note)}
+                    >
+                      {note} {isWhiteKey(note) ? '⚪' : '⚫'}
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Ancho:</span>
-                    <span className="font-mono text-white">{SVG_CONFIG.width} unidades</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Alto:</span>
-                    <span className="font-mono text-white">{SVG_CONFIG.height} unidades</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Transformación:</span>
-                    <span className="font-mono text-white">Giro 180°</span>
-                  </div>
-                </div>
+                ))}
               </div>
-              
-              <div>
-                <h3 className="text-lg font-semibold text-purple-200 mb-3">🎹 Rango de Notas</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Nota más grave:</span>
-                    <span className="font-mono text-white bg-purple-900/50 px-2 py-1 rounded">A0</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Nota más aguda:</span>
-                    <span className="font-mono text-white bg-purple-900/50 px-2 py-1 rounded">C8</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Nota central:</span>
-                    <span className="font-mono text-white bg-purple-900/50 px-2 py-1 rounded">A4 (440Hz)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Orden visual:</span>
-                    <span className="font-mono text-white">A0 ← → C8</span>
-                  </div>
-                </div>
+            </div>
+            
+            <div className="bg-black/40 rounded-xl p-6 backdrop-blur-sm border border-white/10">
+              <h3 className="text-lg font-semibold text-purple-200 mb-3">🎵 Últimas Notas (Agudas)</h3>
+              <div className="space-y-1 text-sm font-mono">
+                {PIANO_NOTES.slice(-8).map((note, index) => {
+                  const realIndex = 80 + index; // 88 - 8 = 80
+                  return (
+                    <div key={note} className="flex justify-between items-center">
+                      <span className="text-gray-300">[{realIndex}]</span>
+                      <span 
+                        className={`px-2 py-1 rounded cursor-pointer transition-colors ${
+                          selectedKey === note 
+                            ? 'bg-purple-600 text-white' 
+                            : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                        }`}
+                        onClick={() => setSelectedKey(note)}
+                      >
+                        {note} {isWhiteKey(note) ? '⚪' : '⚫'}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -328,7 +425,7 @@ function App() {
           </div>
         </section>
 
-        {/* Status y Próximos Pasos */}
+        {/* Estado del Desarrollo */}
         <section>
           <h2 className="text-2xl font-semibold mb-4 text-purple-300">Estado del Desarrollo</h2>
           
@@ -342,7 +439,7 @@ function App() {
               <div className="flex items-center space-x-3">
                 <span className="text-green-400 text-xl">✅</span>
                 <span className="text-white font-semibold">Fase 2: Datos Musicales</span>
-                <span className="text-gray-400">- Piano real configurado (A0 izquierda, C8 derecha)</span>
+                <span className="text-gray-400">- Piano real con orden correcto A0→C8</span>
               </div>
               <div className="flex items-center space-x-3">
                 <span className="text-yellow-400 text-xl">🚧</span>
@@ -359,11 +456,12 @@ function App() {
               <h4 className="font-semibold text-green-200 mb-2">🎉 Fase 2 Completada Exitosamente:</h4>
               <div className="text-sm text-green-100 space-y-1">
                 <p>✅ Piano con 88 teclas reales funcionando</p>
-                <p>✅ Coordenadas SVG exactas implementadas</p>
-                <p>✅ Configuración fija: A0 izquierda → C8 derecha</p>
-                <p>✅ Transformación visual 180° aplicada</p>
+                <p>✅ Coordenadas SVG originales sin transformaciones innecesarias</p>
+                <p>✅ Orden correcto verificado: A0 (izquierda) → C8 (derecha)</p>
+                <p>✅ Posicionamiento visual correcto (A0 x≈0, C8 x≈187)</p>
                 <p>✅ Datos musicales completos (acordes, escalas, constantes)</p>
                 <p>✅ Layout de teclado físico definido</p>
+                <p>✅ Archivos pianoCoordinates.ts y App.tsx coherentes</p>
               </div>
             </div>
           </div>
@@ -374,8 +472,8 @@ function App() {
       {/* Footer */}
       <footer className="bg-black/20 backdrop-blur-sm border-t border-white/10 p-4 mt-8">
         <div className="max-w-7xl mx-auto text-center text-gray-400 text-sm">
-          <p>🎹 Psanter • Piano Virtual Profesional • Configuración de Piano Real</p>
-          <p className="mt-1">Click en las teclas para interactuar • A0 (graves) a la izquierda • C8 (agudos) a la derecha</p>
+          <p>🎹 Psanter • Piano Virtual Profesional • Fase 2 Completada</p>
+          <p className="mt-1">Click en las teclas para interactuar • A0 (graves) izquierda • C8 (agudos) derecha</p>
         </div>
       </footer>
     </div>

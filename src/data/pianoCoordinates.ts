@@ -1,6 +1,7 @@
 /**
  * Coordenadas SVG para todas las 88 teclas del piano
- * Piano girado 180 grados con A0 a la izquierda y C8 a la derecha
+ * Piano con orden correcto: A0 (izquierda) → C8 (derecha)
+ * SIN TRANSFORMACIONES - Coordenadas originales directas
  */
 
 import type { NoteName } from '../types/piano';
@@ -41,7 +42,30 @@ export const KEY_COLORS = {
   }
 } as const;
 
+// ORDEN LÓGICO CORRECTO de las 88 teclas del piano (A0 → C8)
+export const PIANO_NOTES: NoteName[] = [
+  // Subcontra octave (partial)
+  'A0', 'A#0', 'B0',
+  // Contra octave
+  'C1', 'C#1', 'D1', 'D#1', 'E1', 'F1', 'F#1', 'G1', 'G#1', 'A1', 'A#1', 'B1',
+  // Great octave
+  'C2', 'C#2', 'D2', 'D#2', 'E2', 'F2', 'F#2', 'G2', 'G#2', 'A2', 'A#2', 'B2',
+  // Small octave
+  'C3', 'C#3', 'D3', 'D#3', 'E3', 'F3', 'F#3', 'G3', 'G#3', 'A3', 'A#3', 'B3',
+  // One-line octave (contains middle C)
+  'C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4',
+  // Two-line octave
+  'C5', 'C#5', 'D5', 'D#5', 'E5', 'F5', 'F#5', 'G5', 'G#5', 'A5', 'A#5', 'B5',
+  // Three-line octave
+  'C6', 'C#6', 'D6', 'D#6', 'E6', 'F6', 'F#6', 'G6', 'G#6', 'A6', 'A#6', 'B6',
+  // Four-line octave
+  'C7', 'C#7', 'D7', 'D#7', 'E7', 'F7', 'F#7', 'G7', 'G#7', 'A7', 'A#7', 'B7',
+  // Five-line octave (partial)
+  'C8'
+];
+
 // Coordenadas exactas del SVG original para las 88 teclas del piano
+// ESTAS COORDENADAS YA ESTÁN CORRECTAS: A0 izquierda (x≈0) → C8 derecha (x≈187)
 const ORIGINAL_COORDINATES: Record<NoteName, number[][]> = {
   'A0': [[3.0,20.0], [0.0,20.0], [0.0,0.0], [3.5,0.0], [3.5,6.0], [3.0,6.0]],
   'A#0': [[5.05,20.0], [3.05,20.0], [3.05,6.05], [5.05,6.05], [5.05,20.0]],
@@ -133,17 +157,6 @@ const ORIGINAL_COORDINATES: Record<NoteName, number[][]> = {
   'C8': [[183.6,0.0], [183.6,20.0], [187.1,20.0], [187.1,0.0], [183.6,0.0]]
 };
 
-// Array de notas en orden original (A0 primero, C8 último)
-const PIANO_NOTES_ORIGINAL: NoteName[] = Object.keys(ORIGINAL_COORDINATES) as NoteName[];
-
-// Función para aplicar giro de 180 grados a las coordenadas
-const flip180Degrees = (coordinates: number[][]): number[][] => {
-  return coordinates.map(([x, y]) => [
-    SVG_CONFIG.width - x,  // Invertir X
-    SVG_CONFIG.height - y  // Invertir Y
-  ]);
-};
-
 // Función para determinar si una nota es tecla blanca o negra
 export const isWhiteKey = (note: NoteName): boolean => {
   const noteName = note.replace(/\d+/, '');
@@ -159,17 +172,6 @@ const coordinatesToPolygonString = (coordinates: number[][]): string => {
   return coordinates.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
 };
 
-// Función para obtener las coordenadas giradas de una nota
-const getFlippedCoordinates = (note: NoteName): string => {
-  const coords = ORIGINAL_COORDINATES[note];
-  if (!coords) {
-    throw new Error(`No se encontraron coordenadas para la nota: ${note}`);
-  }
-  
-  const flippedCoords = flip180Degrees(coords);
-  return coordinatesToPolygonString(flippedCoords);
-};
-
 // Interface para coordenadas de tecla
 export interface KeyCoordinate {
   note: NoteName;
@@ -183,16 +185,23 @@ export interface KeyCoordinate {
   height: number;
 }
 
-// Función para generar todas las coordenadas de las teclas (giradas 180°, orden A0→C8)
+// Función para generar todas las coordenadas de las teclas SIN TRANSFORMACIONES
 const generateAllKeyCoordinates = (): KeyCoordinate[] => {
-  return PIANO_NOTES_ORIGINAL.map((note, index) => {
+  return PIANO_NOTES.map((note, index) => {
     const isWhite = isWhiteKey(note);
-    const coordinates = getFlippedCoordinates(note);
     
-    // Extraer bounding box de las coordenadas giradas
-    const flippedCoords = flip180Degrees(ORIGINAL_COORDINATES[note]);
-    const xCoords = flippedCoords.map(([x, _]) => x);
-    const yCoords = flippedCoords.map(([_, y]) => y);
+    // Obtener coordenadas originales para esta nota SIN MODIFICACIONES
+    const originalCoords = ORIGINAL_COORDINATES[note];
+    if (!originalCoords) {
+      throw new Error(`No se encontraron coordenadas originales para la nota: ${note}`);
+    }
+    
+    // USAR COORDENADAS ORIGINALES DIRECTAMENTE (sin transformaciones)
+    const coordinates = coordinatesToPolygonString(originalCoords);
+    
+    // Extraer bounding box de las coordenadas originales
+    const xCoords = originalCoords.map(([x, _]) => x);
+    const yCoords = originalCoords.map(([_, y]) => y);
     
     const x = Math.min(...xCoords);
     const y = Math.min(...yCoords);
@@ -213,15 +222,23 @@ const generateAllKeyCoordinates = (): KeyCoordinate[] => {
   });
 };
 
-// Exportar las notas en orden A0→C8
-export const PIANO_NOTES: NoteName[] = PIANO_NOTES_ORIGINAL;
-
-// Array completo de coordenadas para las 88 teclas (giradas 180°, A0 izquierda)
+// Array completo de coordenadas para las 88 teclas 
+// ORDEN LÓGICO: A0 (índice 0, izquierda) → C8 (índice 87, derecha)
+// COORDENADAS ORIGINALES SIN TRANSFORMACIONES
 export const PIANO_KEY_COORDINATES: KeyCoordinate[] = generateAllKeyCoordinates();
 
-// Verificación de que tenemos exactamente 88 notas
+// Verificación de que tenemos exactamente 88 notas en orden correcto
 if (PIANO_NOTES.length !== 88) {
   throw new Error(`Piano debe tener exactamente 88 notas, pero tiene ${PIANO_NOTES.length}`);
+}
+
+// Verificar que el orden es correcto
+if (PIANO_NOTES[0] !== 'A0') {
+  throw new Error(`Primera nota debe ser A0, pero es ${PIANO_NOTES[0]}`);
+}
+
+if (PIANO_NOTES[87] !== 'C8') {
+  throw new Error(`Última nota debe ser C8, pero es ${PIANO_NOTES[87]}`);
 }
 
 // Función para obtener coordenadas por nota
@@ -270,17 +287,31 @@ export const PIANO_STATS = {
   OCTAVES: 7.25,
   SVG_WIDTH: SVG_CONFIG.width,
   SVG_HEIGHT: SVG_CONFIG.height,
-  X_RANGE: { min: 0, max: 187.1 },
-  Y_RANGE: { min: 0, max: 20 },
-  TRANSFORMATION: 'Piano Real (Girado 180° - A0 izquierda, C8 derecha)'
+  LOWEST_NOTE: PIANO_NOTES[0], // A0
+  HIGHEST_NOTE: PIANO_NOTES[PIANO_NOTES.length - 1], // C8
+  MIDDLE_C_INDEX: PIANO_NOTES.indexOf('C4' as NoteName), // índice de C4
+  A4_INDEX: PIANO_NOTES.indexOf('A4' as NoteName), // índice de A4 (440Hz)
+  TRANSFORMATION: 'Piano Real - Coordenadas originales sin transformaciones'
 } as const;
 
-// Validaciones
-console.log('🎹 Piano Real - Configuración Fija:');
+// Validaciones y logging para debugging
+console.log('🎹 Piano Real - Coordenadas Originales:');
 console.log('- Total keys:', PIANO_STATS.TOTAL_KEYS);
-console.log('- Transformación:', PIANO_STATS.TRANSFORMATION);
-console.log('- Primera nota (izquierda):', PIANO_NOTES[0]);
-console.log('- Última nota (derecha):', PIANO_NOTES[PIANO_NOTES.length - 1]);
+console.log('- Orden verificado:', PIANO_STATS.LOWEST_NOTE, '→', PIANO_STATS.HIGHEST_NOTE);
+console.log('- A0 en índice 0 (izquierda x≈0):', PIANO_NOTES[0]);
+console.log('- C8 en índice 87 (derecha x≈187):', PIANO_NOTES[87]);
+console.log('- C4 (middle C) en índice:', PIANO_STATS.MIDDLE_C_INDEX);
+console.log('- A4 (440Hz) en índice:', PIANO_STATS.A4_INDEX);
 console.log('- White keys:', PIANO_STATS.WHITE_KEYS);
 console.log('- Black keys:', PIANO_STATS.BLACK_KEYS);
-console.log('- Total verification:', PIANO_STATS.WHITE_KEYS + PIANO_STATS.BLACK_KEYS === 88 ? '✅ Perfect' : '❌ Error');
+console.log('- Suma verificación:', PIANO_STATS.WHITE_KEYS + PIANO_STATS.BLACK_KEYS === 88 ? '✅ Perfecto' : '❌ Error');
+console.log('- Sin transformaciones aplicadas - coordenadas originales directas');
+
+// Verificar coordenadas de A0 y C8 para confirmar orden
+const a0Coords = getCoordinatesByNote('A0');
+const c8Coords = getCoordinatesByNote('C8');
+if (a0Coords && c8Coords) {
+  console.log('- A0 posición X:', a0Coords.x, '(debe estar cerca de 0)');
+  console.log('- C8 posición X:', c8Coords.x, '(debe estar cerca de 187)');
+  console.log('- Orden visual verificado:', a0Coords.x < c8Coords.x ? '✅ Correcto' : '❌ Error');
+}
