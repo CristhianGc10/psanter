@@ -1,7 +1,7 @@
 /**
  * Coordenadas SVG para todas las 88 teclas del piano
  * Piano con orden correcto: A0 (izquierda) → C8 (derecha)
- * SIN TRANSFORMACIONES - Coordenadas originales directas
+ * CON TRANSFORMACIÓN Y CORREGIDA - Coordenadas adaptadas para SVG
  */
 
 import type { NoteName } from '../types/piano';
@@ -65,7 +65,7 @@ export const PIANO_NOTES: NoteName[] = [
 ];
 
 // Coordenadas exactas del SVG original para las 88 teclas del piano
-// ESTAS COORDENADAS YA ESTÁN CORRECTAS: A0 izquierda (x≈0) → C8 derecha (x≈187)
+// ESTAS COORDENADAS NECESITAN TRANSFORMACIÓN Y PARA SVG
 const ORIGINAL_COORDINATES: Record<NoteName, number[][]> = {
   'A0': [[3.0,20.0], [0.0,20.0], [0.0,0.0], [3.5,0.0], [3.5,6.0], [3.0,6.0]],
   'A#0': [[5.05,20.0], [3.05,20.0], [3.05,6.05], [5.05,6.05], [5.05,20.0]],
@@ -157,6 +157,14 @@ const ORIGINAL_COORDINATES: Record<NoteName, number[][]> = {
   'C8': [[183.6,0.0], [183.6,20.0], [187.1,20.0], [187.1,0.0], [183.6,0.0]]
 };
 
+// FUNCIÓN CRÍTICA: Transformar coordenadas Y para SVG
+// En las coordenadas originales: Y=0 está abajo, Y=20 está arriba
+// En SVG: Y=0 está arriba, Y=20 está abajo
+// Necesitamos invertir: nueva_Y = 20 - Y_original
+const transformYCoordinate = (y: number): number => {
+  return SVG_CONFIG.height - y;
+};
+
 // Función para determinar si una nota es tecla blanca o negra
 export const isWhiteKey = (note: NoteName): boolean => {
   const noteName = note.replace(/\d+/, '');
@@ -167,9 +175,12 @@ export const isBlackKey = (note: NoteName): boolean => {
   return !isWhiteKey(note);
 };
 
-// Función para convertir array de coordenadas a string de polígono SVG
+// Función para convertir array de coordenadas a string de polígono SVG CON TRANSFORMACIÓN Y
 const coordinatesToPolygonString = (coordinates: number[][]): string => {
-  return coordinates.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
+  return coordinates.map(([x, y]) => {
+    const transformedY = transformYCoordinate(y);
+    return `${x.toFixed(2)},${transformedY.toFixed(2)}`;
+  }).join(' ');
 };
 
 // Interface para coordenadas de tecla
@@ -185,23 +196,24 @@ export interface KeyCoordinate {
   height: number;
 }
 
-// Función para generar todas las coordenadas de las teclas SIN TRANSFORMACIONES
+// Función para generar todas las coordenadas de las teclas CON TRANSFORMACIÓN Y CORRECTA
 const generateAllKeyCoordinates = (): KeyCoordinate[] => {
   return PIANO_NOTES.map((note, index) => {
     const isWhite = isWhiteKey(note);
     
-    // Obtener coordenadas originales para esta nota SIN MODIFICACIONES
+    // Obtener coordenadas originales para esta nota
     const originalCoords = ORIGINAL_COORDINATES[note];
     if (!originalCoords) {
       throw new Error(`No se encontraron coordenadas originales para la nota: ${note}`);
     }
     
-    // USAR COORDENADAS ORIGINALES DIRECTAMENTE (sin transformaciones)
+    // APLICAR TRANSFORMACIÓN Y a las coordenadas para SVG
     const coordinates = coordinatesToPolygonString(originalCoords);
     
-    // Extraer bounding box de las coordenadas originales
-    const xCoords = originalCoords.map(([x, _]) => x);
-    const yCoords = originalCoords.map(([_, y]) => y);
+    // Extraer bounding box de las coordenadas TRANSFORMADAS
+    const transformedCoords = originalCoords.map(([x, y]) => [x, transformYCoordinate(y)]);
+    const xCoords = transformedCoords.map(([x, _]) => x);
+    const yCoords = transformedCoords.map(([_, y]) => y);
     
     const x = Math.min(...xCoords);
     const y = Math.min(...yCoords);
@@ -224,7 +236,7 @@ const generateAllKeyCoordinates = (): KeyCoordinate[] => {
 
 // Array completo de coordenadas para las 88 teclas 
 // ORDEN LÓGICO: A0 (índice 0, izquierda) → C8 (índice 87, derecha)
-// COORDENADAS ORIGINALES SIN TRANSFORMACIONES
+// COORDENADAS CON TRANSFORMACIÓN Y CORRECTA PARA SVG
 export const PIANO_KEY_COORDINATES: KeyCoordinate[] = generateAllKeyCoordinates();
 
 // Verificación de que tenemos exactamente 88 notas en orden correcto
@@ -291,11 +303,11 @@ export const PIANO_STATS = {
   HIGHEST_NOTE: PIANO_NOTES[PIANO_NOTES.length - 1], // C8
   MIDDLE_C_INDEX: PIANO_NOTES.indexOf('C4' as NoteName), // índice de C4
   A4_INDEX: PIANO_NOTES.indexOf('A4' as NoteName), // índice de A4 (440Hz)
-  TRANSFORMATION: 'Piano Real - Coordenadas originales sin transformaciones'
+  TRANSFORMATION: 'Piano Real - Con transformación Y correcta para SVG'
 } as const;
 
 // Validaciones y logging para debugging
-console.log('🎹 Piano Real - Coordenadas Originales:');
+console.log('🎹 Piano Real - Con Transformación Y Correcta:');
 console.log('- Total keys:', PIANO_STATS.TOTAL_KEYS);
 console.log('- Orden verificado:', PIANO_STATS.LOWEST_NOTE, '→', PIANO_STATS.HIGHEST_NOTE);
 console.log('- A0 en índice 0 (izquierda x≈0):', PIANO_NOTES[0]);
@@ -305,7 +317,7 @@ console.log('- A4 (440Hz) en índice:', PIANO_STATS.A4_INDEX);
 console.log('- White keys:', PIANO_STATS.WHITE_KEYS);
 console.log('- Black keys:', PIANO_STATS.BLACK_KEYS);
 console.log('- Suma verificación:', PIANO_STATS.WHITE_KEYS + PIANO_STATS.BLACK_KEYS === 88 ? '✅ Perfecto' : '❌ Error');
-console.log('- Sin transformaciones aplicadas - coordenadas originales directas');
+console.log('- ✅ Transformación Y aplicada correctamente para SVG');
 
 // Verificar coordenadas de A0 y C8 para confirmar orden
 const a0Coords = getCoordinatesByNote('A0');
