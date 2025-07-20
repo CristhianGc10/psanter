@@ -20,8 +20,8 @@ import {
   getNoteIndex,
   getNoteByIndex,
   transposeNote,
-  isValidNoteName,
-  NOTE_STATS
+  isValidNoteName
+  // CORRECCIÓN: Remover NOTE_STATS que no se usa
 } from './noteUtils';
 
 // Estado global del mapeo de teclado

@@ -7,7 +7,8 @@ import type { NoteName } from '../types/piano';
 import { 
   SCALE_PATTERNS, 
   SCALE_NAMES, 
-  CHROMATIC_NOTES
+  CHROMATIC_NOTES,
+  type ChromaticNote // Importar el tipo
 } from '../data/musicalData';
 import {
   getNoteName
@@ -101,6 +102,13 @@ const scaleWeights: Record<keyof typeof SCALE_PATTERNS, number> = {
 };
 
 /**
+ * Valida si una cadena es una nota cromática válida
+ */
+const isValidChromaticNote = (note: string): note is ChromaticNote => {
+  return CHROMATIC_NOTES.includes(note as ChromaticNote);
+};
+
+/**
  * Convierte notas a clases de altura únicas
  */
 const extractPitchClasses = (notes: NoteName[]): string[] => {
@@ -118,6 +126,12 @@ const extractPitchClasses = (notes: NoteName[]): string[] => {
  * Genera todas las notas de una escala desde una tónica
  */
 const generateScaleNotes = (tonic: string, pattern: readonly number[]): string[] => {
+  // CORRECCIÓN: Validar que tonic es una nota cromática válida
+  if (!isValidChromaticNote(tonic)) {
+    console.warn(`Tónica inválida en generateScaleNotes: ${tonic}`);
+    return [];
+  }
+  
   const tonicIndex = CHROMATIC_NOTES.findIndex(note => note === tonic);
   if (tonicIndex === -1) return [];
   
@@ -239,7 +253,7 @@ export const detectScales = (notes: NoteName[], config: Partial<ScaleDetectionCo
       suggestedKey: null,
       modalInterchange: [],
       timestamp,
-      inputNotes: notes,
+      inputNotes: notes || [],
       analysis: {
         tonalCenter: null,
         modality: 'unknown',
@@ -356,7 +370,9 @@ export const detectScales = (notes: NoteName[], config: Partial<ScaleDetectionCo
     // Guardar en cache
     if (scaleDetectionCache.size >= maxScaleCacheSize) {
       const oldestKey = scaleDetectionCache.keys().next().value;
-      scaleDetectionCache.delete(oldestKey);
+      if (oldestKey) {
+        scaleDetectionCache.delete(oldestKey);
+      }
     }
     scaleDetectionCache.set(cacheKey, result);
     

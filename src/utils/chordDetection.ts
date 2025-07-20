@@ -7,7 +7,8 @@ import type { NoteName } from '../types/piano';
 import { 
   CHORD_PATTERNS, 
   CHORD_NAMES, 
-  CHROMATIC_NOTES 
+  CHROMATIC_NOTES,
+  type ChromaticNote // Importar el tipo
 } from '../data/musicalData';
 import {
   getNoteName,
@@ -85,15 +86,26 @@ const normalizePattern = (pattern: number[]): number[] => {
 };
 
 /**
+ * Valida si una cadena es una nota cromática válida
+ */
+const isValidChromaticNote = (note: string): note is ChromaticNote => {
+  return CHROMATIC_NOTES.includes(note as ChromaticNote);
+};
+
+/**
  * Calcula los intervalos entre notas
  */
-const calculateIntervals = (pitchClasses: string[], root: string): number[] => {
-  // Validar que root sea una nota cromática válida
+const calculateIntervals = (pitchClasses: string[], root: ChromaticNote): number[] => {
   const rootIndex = CHROMATIC_NOTES.findIndex(note => note === root);
   if (rootIndex === -1) return [];
   
   return pitchClasses.map(note => {
-    // Type assertion para asegurar que note es una nota cromática válida
+    // CORRECCIÓN: Validar cada nota antes de procesarla
+    if (!isValidChromaticNote(note)) {
+      console.warn(`Nota inválida en pitch classes: ${note}`);
+      return 0;
+    }
+    
     const noteIndex = CHROMATIC_NOTES.findIndex(n => n === note);
     if (noteIndex === -1) return 0;
     
@@ -211,7 +223,7 @@ const comparePatterns = (pattern1: number[], pattern2: number[]): number => {
 const analyzeChordCompleteness = (
   inputNotes: string[],
   expectedPattern: readonly number[], // Aceptar readonly array
-  root: string
+  root: ChromaticNote
 ): { missing: string[]; extra: string[] } => {
   const rootIndex = CHROMATIC_NOTES.findIndex(note => note === root);
   if (rootIndex === -1) return { missing: [], extra: [] };
@@ -221,16 +233,16 @@ const analyzeChordCompleteness = (
     const noteIndex = (rootIndex + interval) % 12;
     // Validar que el índice está en rango
     if (noteIndex >= 0 && noteIndex < CHROMATIC_NOTES.length) {
-      return CHROMATIC_NOTES[noteIndex];
+      return CHROMATIC_NOTES[noteIndex] as string; // CORRECCIÓN: Convertir a string
     }
     return '';
   }).filter(note => note !== ''); // Filtrar notas vacías
   
   const inputSet = new Set(inputNotes);
-  const expectedSet = new Set(expectedNotes);
+  const expectedSet = new Set(expectedNotes); // Ahora expectedSet es Set<string>
   
   const missing = expectedNotes.filter(note => !inputSet.has(note));
-  const extra = inputNotes.filter(note => !expectedSet.has(note));
+  const extra = inputNotes.filter(note => !expectedSet.has(note)); // CORRECCIÓN: Ahora funciona
   
   return { missing, extra };
 };
@@ -263,7 +275,7 @@ export const detectChords = (notes: NoteName[], config: Partial<DetectionConfig>
       primaryChord: null,
       alternativeChords: [],
       timestamp,
-      inputNotes: notes
+      inputNotes: notes || []
     };
   }
   
@@ -297,12 +309,19 @@ export const detectChords = (notes: NoteName[], config: Partial<DetectionConfig>
     
     // Probar cada nota como posible raíz
     for (const potentialRoot of pitchClasses) {
-      const intervals = calculateIntervals(pitchClasses, potentialRoot);
+      // CORRECCIÓN: Validar que potentialRoot es una nota cromática válida
+      if (!isValidChromaticNote(potentialRoot)) {
+        console.warn(`Nota potencial raíz inválida: ${potentialRoot}`);
+        continue;
+      }
+      
+      // Type assertion: después de la validación, sabemos que es ChromaticNote
+      const intervals = calculateIntervals(pitchClasses, potentialRoot as ChromaticNote);
       const detection = detectChordType(intervals);
       
       if (detection.type && detection.confidence >= mergedConfig.confidenceThreshold) {
         const chordPattern = CHORD_PATTERNS[detection.type];
-        const analysis = analyzeChordCompleteness(pitchClasses, chordPattern, potentialRoot);
+        const analysis = analyzeChordCompleteness(pitchClasses, chordPattern, potentialRoot as ChromaticNote);
         
         const chord: DetectedChord = {
           name: `${potentialRoot}${CHORD_NAMES[detection.type]}`,
@@ -349,7 +368,9 @@ export const detectChords = (notes: NoteName[], config: Partial<DetectionConfig>
     if (detectionCache.size >= maxCacheSize) {
       // Limpiar cache más antiguo
       const oldestKey = detectionCache.keys().next().value;
-      detectionCache.delete(oldestKey);
+      if (oldestKey) {
+        detectionCache.delete(oldestKey);
+      }
     }
     detectionCache.set(cacheKey, result);
     

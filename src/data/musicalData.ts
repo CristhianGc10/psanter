@@ -12,6 +12,9 @@ export const CHROMATIC_NOTES = [
   'F#', 'G', 'G#', 'A', 'A#', 'B'
 ] as const;
 
+// CORRECCIÓN: Exportar el tipo ChromaticNote
+export type ChromaticNote = typeof CHROMATIC_NOTES[number];
+
 // Nombres alternativos para notas con sostenidos/bemoles
 export const ENHARMONIC_EQUIVALENTS = {
   'C#': 'Db',
@@ -223,7 +226,6 @@ export const ADSR_PRESETS = {
 } as const;
 
 // Validación de tipos para TypeScript
-export type ChromaticNote = typeof CHROMATIC_NOTES[number];
 export type ChordType = keyof typeof CHORD_PATTERNS;
 export type ScaleType = keyof typeof SCALE_PATTERNS;
 export type IntervalType = keyof typeof INTERVALS;
