@@ -8,7 +8,7 @@ import {
   SCALE_PATTERNS, 
   SCALE_NAMES, 
   CHROMATIC_NOTES,
-  type ChromaticNote // Importar el tipo
+  type ChromaticNote
 } from '../data/musicalData';
 import {
   getNoteName
@@ -73,32 +73,71 @@ const defaultScaleConfig: ScaleDetectionConfig = {
 const scaleDetectionCache = new Map<string, ScaleDetectionResult>();
 const maxScaleCacheSize = 500;
 
-// Pesos para diferentes escalas (más comunes = mayor peso)
+// Pesos para diferentes escalas - CORREGIDO con todos los tipos de SCALE_PATTERNS
 const scaleWeights: Record<keyof typeof SCALE_PATTERNS, number> = {
+  // Escalas Básicas
   MAJOR: 1.0,
   NATURAL_MINOR: 1.0,
   HARMONIC_MINOR: 0.8,
   MELODIC_MINOR: 0.7,
-  DORIAN: 0.6,
-  MIXOLYDIAN: 0.6,
+  
+  // Pentatónicas
   MAJOR_PENTATONIC: 0.8,
   MINOR_PENTATONIC: 0.8,
+  
+  // Blues
   BLUES: 0.7,
+  MAJOR_BLUES: 0.6,
+  
+  // Modos Griegos
   IONIAN: 0.9,
-  AEOLIAN: 0.9,
+  DORIAN: 0.6,
   PHRYGIAN: 0.5,
   LYDIAN: 0.5,
+  MIXOLYDIAN: 0.6,
+  AEOLIAN: 0.9,
   LOCRIAN: 0.3,
-  CHROMATIC: 0.2,
-  WHOLE_TONE: 0.3,
-  DIMINISHED: 0.4,
-  MAJOR_BLUES: 0.6,
-  LYDIAN_DOMINANT: 0.4,
+  
+  // Jazz
+  MAJOR_BEBOP: 0.4,
+  MINOR_BEBOP: 0.4,
   SUPER_LOCRIAN: 0.3,
-  HUNGARIAN_MINOR: 0.4,
-  GYPSY: 0.4,
-  SPANISH: 0.4,
-  JEWISH: 0.4
+  NINE_TONE: 0.2,
+  
+  // Exóticas
+  ALGERIAN: 0.3,
+  ARABIC: 0.4,
+  AUGMENTED: 0.3,
+  BALINESE: 0.3,
+  BYZANTINE: 0.3,
+  CHINESE: 0.3,
+  DIMINISHED: 0.4,
+  DOMINANT_DIMINISHED: 0.3,
+  EGYPTIAN: 0.3,
+  EIGHT_TONE_SPANISH: 0.3,
+  ENIGMATIC: 0.2,
+  GEEZ: 0.2,
+  HAWAIIAN: 0.3,
+  HINDU: 0.3,
+  HIRAJOSHI: 0.3,
+  HUNGARIAN_GYPSY: 0.4,
+  HUNGARIAN_MAJOR: 0.3,
+  IBERIAN: 0.3,
+  INDIAN_ASCENDING: 0.2,
+  INDIAN_DESCENDING: 0.2,
+  IWATO: 0.2,
+  JAPANESE: 0.3,
+  LYDIAN_SHARP_5: 0.3,
+  LYDIAN_FLAT_7: 0.4,
+  NEAPOLITAN_MINOR: 0.3,
+  NEAPOLITAN_MAJOR: 0.3,
+  ORIENTAL: 0.3,
+  PROMETHEUS: 0.2,
+  ROMANIAN_MINOR: 0.3,
+  SPANISH_GYPSY: 0.4,
+  WHOLE_TONE: 0.3,
+  YO: 0.2,
+  CHROMATIC: 0.2
 };
 
 /**
@@ -444,61 +483,59 @@ const generateSuggestions = (
   
   if (scales.length === 0) {
     suggestions.push('Toca más notas para detectar escalas');
-    return suggestions;
-  }
-  
-  const primary = scales[0];
-  
-  if (primary.quality === 'perfect') {
-    suggestions.push(`Tonalidad clara: ${primary.name}`);
-  } else if (primary.quality === 'good') {
-    suggestions.push(`Probable tonalidad: ${primary.name}`);
   } else {
-    suggestions.push(`Posible tonalidad: ${primary.name}`);
-  }
-  
-  if (chromaticism > 0.6) {
-    suggestions.push('Pasaje altamente cromático');
-  } else if (chromaticism > 0.3) {
-    suggestions.push('Cromatismo moderado detectado');
-  }
-  
-  if (tonalAnalysis.stability < 0.3) {
-    suggestions.push('Tonalidad ambigua, considera modulación');
-  }
-  
-  if (primary.missingNotes.length > 0) {
-    suggestions.push(`Notas faltantes: ${primary.missingNotes.join(', ')}`);
+    const primary = scales[0];
+    
+    if (primary.confidence >= 0.9) {
+      suggestions.push(`Escala ${primary.name} detectada con alta confianza`);
+    } else if (primary.confidence >= 0.7) {
+      suggestions.push(`Posible escala ${primary.name}`);
+      if (primary.missingNotes.length > 0) {
+        suggestions.push(`Prueba agregando: ${primary.missingNotes.slice(0, 3).join(', ')}`);
+      }
+    }
+    
+    if (chromaticism > 0.7) {
+      suggestions.push('Alto nivel de cromatismo detectado');
+    }
+    
+    if (tonalAnalysis.stability < 0.3) {
+      suggestions.push('Centro tonal ambiguo - toca más notas de la tónica');
+    }
   }
   
   return suggestions;
 };
 
 /**
- * Analiza compatibilidad entre acorde y escala
+ * Analiza compatibilidad entre un acorde y escalas detectadas
  */
 export const analyzeChordScaleCompatibility = (
-  chord: DetectedChord, 
+  chord: DetectedChord,
   scale: DetectedScale
 ): { compatible: boolean; reason: string; score: number } => {
   if (!chord || !scale) {
-    return { compatible: false, reason: 'Acorde o escala no válidos', score: 0 };
+    return { compatible: false, reason: 'Datos insuficientes', score: 0 };
   }
   
+  // Extraer notas del acorde (sin octava)
   const chordNotes = new Set(chord.notes.map(note => getNoteName(note)));
   const scaleNotes = new Set(scale.notes);
   
-  const compatibleNotes = Array.from(chordNotes).filter(note => scaleNotes.has(note));
-  const incompatibleNotes = Array.from(chordNotes).filter(note => !scaleNotes.has(note));
+  // Verificar si todas las notas del acorde están en la escala
+  const incompatibleNotes: string[] = [];
+  chordNotes.forEach(note => {
+    if (!scaleNotes.has(note)) {
+      incompatibleNotes.push(note);
+    }
+  });
   
-  const compatibilityScore = compatibleNotes.length / chordNotes.size;
+  const compatibilityScore = 1 - (incompatibleNotes.length / chordNotes.size);
   
   let reason = '';
-  if (compatibilityScore >= 0.8) {
-    reason = 'Acorde totalmente compatible con la escala';
+  if (compatibilityScore === 1) {
+    reason = `${chord.name} encaja perfectamente en ${scale.name}`;
   } else if (compatibilityScore >= 0.6) {
-    reason = 'Acorde mayormente compatible';
-  } else if (compatibilityScore >= 0.4) {
     reason = `Parcialmente compatible. Notas fuera: ${incompatibleNotes.join(', ')}`;
   } else {
     reason = `Incompatible. Notas conflictivas: ${incompatibleNotes.join(', ')}`;

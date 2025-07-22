@@ -1,6 +1,6 @@
 /**
- * ARCHIVO NUEVO: src/utils/optimizedDetection.ts
- * Sistema de detección musical optimizado - Capa de optimización sobre sistemas existentes
+ * Sistema de detección musical optimizado con PRECISIÓN EXACTA
+ * Usa datos reales de musicalData.ts para máxima precisión
  */
 
 import type { NoteName } from '../types/piano';
@@ -9,10 +9,14 @@ import {
   SCALE_PATTERNS,
   CHORD_NAMES,
   SCALE_NAMES,
-  CHROMATIC_NOTES
+  CHROMATIC_NOTES,
+  REAL_SCALES,
+  REAL_CHORDS,
+  getRealScale,
+  getRealChord,
+  type ChromaticNote
 } from '../data/musicalData';
 
-// Importar sistemas existentes
 import { 
   detectChords as originalDetectChords,
   type DetectedChord,
@@ -25,6 +29,8 @@ import {
   type ScaleDetectionResult
 } from './scaleDetection';
 
+import { getNoteName } from './noteUtils';
+
 // ========================================================================================
 // TIPOS OPTIMIZADOS
 // ========================================================================================
@@ -35,6 +41,7 @@ export interface OptimizedChordResult {
   alternatives: DetectedChord[];
   reasoning: string;
   certainty: 'high' | 'medium' | 'low';
+  exactMatch: boolean;
 }
 
 export interface OptimizedScaleResult {
@@ -43,552 +50,477 @@ export interface OptimizedScaleResult {
   alternatives: DetectedScale[];
   reasoning: string;
   certainty: 'high' | 'medium' | 'low';
-}
-
-interface MusicalContext {
-  recentChords: DetectedChord[];
-  recentScales: DetectedScale[];
-  establishedKey: string | null;
-  progressionHistory: string[];
+  exactMatch: boolean;
 }
 
 // ========================================================================================
-// CONFIGURACIÓN
+// DETECCIÓN DE PRECISIÓN EXACTA
 // ========================================================================================
 
-const OPTIMIZATION_CONFIG = {
-  weights: {
-    noteMatch: 0.35,
-    contextualFit: 0.25,
-    commonality: 0.20,
-    temporalConsistency: 0.15,
-    harmonicStability: 0.05
-  },
-  
-  thresholds: {
-    highCertainty: 0.85,
-    mediumCertainty: 0.65,
-    minimumAcceptable: 0.40
-  },
-  
-  precedenceRules: {
-    // Casos idénticos - preferir nombres más comunes
-    identicalScales: new Map([
-      ['IONIAN', 'MAJOR'],
-      ['AEOLIAN', 'NATURAL_MINOR'],
-      ['SUPER_PHRYGIAN', 'HARMONIC_MINOR']
-    ]),
-    
-    // Preferir acordes extendidos si están completas
-    preferExtended: true
+/**
+ * Extrae pitch classes únicas de las notas
+ */
+const extractUniquePitchClasses = (notes: NoteName[]): string[] => {
+  const pitchClasses = new Set<string>();
+  notes.forEach(note => {
+    pitchClasses.add(getNoteName(note));
+  });
+  return Array.from(pitchClasses).sort();
+};
+
+/**
+ * Compara dos arrays de notas (ignorando orden)
+ */
+const areNoteSetsEqual = (set1: string[], set2: string[]): boolean => {
+  if (set1.length !== set2.length) return false;
+  const sorted1 = [...set1].sort();
+  const sorted2 = [...set2].sort();
+  return sorted1.every((note, i) => note === sorted2[i]);
+};
+
+/**
+ * Detecta acordes con PRECISIÓN EXACTA usando REAL_CHORDS
+ */
+export const detectChordsOptimized = (notes: NoteName[]): OptimizedChordResult => {
+  if (!notes || notes.length < 2) {
+    return {
+      chord: {
+        name: 'No chord',
+        root: '',
+        type: 'MAJOR',
+        notes: [],
+        confidence: 0,
+        inversion: 0,
+        missingNotes: [],
+        extraNotes: [],
+        quality: 'weak'
+      },
+      confidence: 0,
+      alternatives: [],
+      reasoning: 'Insufficient notes for chord detection',
+      certainty: 'low',
+      exactMatch: false
+    };
   }
+
+  const pitchClasses = extractUniquePitchClasses(notes);
+  const detectedChords: Array<{
+    chord: DetectedChord;
+    exactMatch: boolean;
+    matchScore: number;
+  }> = [];
+
+  // Buscar coincidencia EXACTA en REAL_CHORDS
+  for (const [tonic, chordTypes] of Object.entries(REAL_CHORDS)) {
+    for (const [chordType, chordNotes] of Object.entries(chordTypes)) {
+      // Verificar coincidencia exacta
+      if (areNoteSetsEqual(pitchClasses, chordNotes)) {
+        const chord: DetectedChord = {
+          name: `${tonic} ${chordType}`,
+          root: tonic,
+          type: mapRealChordTypeToPattern(chordType),
+          notes: notes,
+          confidence: 1.0,
+          inversion: detectInversion(pitchClasses, chordNotes),
+          missingNotes: [],
+          extraNotes: [],
+          quality: 'perfect'
+        };
+        
+        detectedChords.push({
+          chord,
+          exactMatch: true,
+          matchScore: 1.0
+        });
+      } else {
+        // Calcular coincidencia parcial
+        const commonNotes = pitchClasses.filter(note => chordNotes.includes(note));
+        const missingNotes = chordNotes.filter(note => !pitchClasses.includes(note));
+        const extraNotes = pitchClasses.filter(note => !chordNotes.includes(note));
+        
+        const matchScore = calculateChordMatchScore(
+          commonNotes.length,
+          missingNotes.length,
+          extraNotes.length,
+          chordNotes.length
+        );
+        
+        if (matchScore >= 0.5) {
+          const confidence = matchScore;
+          const quality = getQuality(confidence, missingNotes.length);
+          
+          const chord: DetectedChord = {
+            name: `${tonic} ${chordType}`,
+            root: tonic,
+            type: mapRealChordTypeToPattern(chordType),
+            notes: notes,
+            confidence,
+            inversion: detectInversion(pitchClasses, chordNotes),
+            missingNotes,
+            extraNotes,
+            quality
+          };
+          
+          detectedChords.push({
+            chord,
+            exactMatch: false,
+            matchScore
+          });
+        }
+      }
+    }
+  }
+
+  // Ordenar por score (exactMatch primero, luego por matchScore)
+  detectedChords.sort((a, b) => {
+    if (a.exactMatch && !b.exactMatch) return -1;
+    if (!a.exactMatch && b.exactMatch) return 1;
+    return b.matchScore - a.matchScore;
+  });
+
+  if (detectedChords.length === 0) {
+    // Fallback al sistema original si no hay coincidencias
+    const originalResult = originalDetectChords(notes);
+    return {
+      chord: originalResult.primaryChord || {
+        name: 'Unknown',
+        root: '',
+        type: 'MAJOR',
+        notes: notes,
+        confidence: 0,
+        inversion: 0,
+        missingNotes: [],
+        extraNotes: pitchClasses,
+        quality: 'weak'
+      },
+      confidence: originalResult.primaryChord?.confidence || 0,
+      alternatives: originalResult.alternativeChords.slice(0, 3),
+      reasoning: 'No exact match found in chord database',
+      certainty: 'low',
+      exactMatch: false
+    };
+  }
+
+  const best = detectedChords[0];
+  const alternatives = detectedChords.slice(1, 4).map(d => d.chord);
+  
+  const reasoning = best.exactMatch 
+    ? `Exact match: ${best.chord.name}`
+    : `Best match: ${best.chord.name} (${Math.round(best.matchScore * 100)}% match)`;
+    
+  const certainty = best.exactMatch ? 'high' : 
+                    best.matchScore >= 0.8 ? 'medium' : 'low';
+
+  return {
+    chord: best.chord,
+    confidence: best.matchScore,
+    alternatives,
+    reasoning,
+    certainty,
+    exactMatch: best.exactMatch
+  };
+};
+
+/**
+ * Detecta escalas con PRECISIÓN EXACTA usando REAL_SCALES
+ */
+export const detectScalesOptimized = (notes: NoteName[]): OptimizedScaleResult => {
+  if (!notes || notes.length < 3) {
+    return {
+      scale: {
+        name: 'No scale',
+        tonic: '',
+        type: 'MAJOR',
+        notes: [],
+        confidence: 0,
+        mode: '',
+        degrees: [],
+        missingNotes: [],
+        extraNotes: [],
+        compatibility: 0,
+        quality: 'weak'
+      },
+      confidence: 0,
+      alternatives: [],
+      reasoning: 'Insufficient notes for scale detection',
+      certainty: 'low',
+      exactMatch: false
+    };
+  }
+
+  const pitchClasses = extractUniquePitchClasses(notes);
+  const detectedScales: Array<{
+    scale: DetectedScale;
+    exactMatch: boolean;
+    matchScore: number;
+  }> = [];
+
+  // Buscar coincidencia EXACTA en REAL_SCALES
+  for (const [tonic, scaleTypes] of Object.entries(REAL_SCALES)) {
+    for (const [scaleType, scaleNotes] of Object.entries(scaleTypes)) {
+      // Para escalas, verificamos si las notas tocadas son un subconjunto de la escala
+      const isSubset = pitchClasses.every(note => scaleNotes.includes(note));
+      const isExactMatch = isSubset && pitchClasses.length >= Math.min(5, scaleNotes.length);
+      
+      if (isSubset) {
+        const missingNotes = scaleNotes.filter(note => !pitchClasses.includes(note));
+        const extraNotes = pitchClasses.filter(note => !scaleNotes.includes(note));
+        
+        const matchScore = calculateScaleMatchScore(
+          pitchClasses.length,
+          missingNotes.length,
+          extraNotes.length,
+          scaleNotes.length,
+          isExactMatch
+        );
+        
+        if (matchScore >= 0.4) {
+          const patternType = mapRealScaleTypeToPattern(scaleType);
+          const pattern = SCALE_PATTERNS[patternType] || SCALE_PATTERNS.MAJOR;
+          
+          const scale: DetectedScale = {
+            name: `${tonic} ${scaleType}`,
+            tonic,
+            type: patternType,
+            notes: scaleNotes,
+            confidence: matchScore,
+            mode: scaleType,
+            degrees: pattern,
+            missingNotes,
+            extraNotes,
+            compatibility: matchScore,
+            quality: getQuality(matchScore, missingNotes.length)
+          };
+          
+          detectedScales.push({
+            scale,
+            exactMatch: isExactMatch,
+            matchScore
+          });
+        }
+      }
+    }
+  }
+
+  // Ordenar por score
+  detectedScales.sort((a, b) => {
+    if (a.exactMatch && !b.exactMatch) return -1;
+    if (!a.exactMatch && b.exactMatch) return 1;
+    return b.matchScore - a.matchScore;
+  });
+
+  if (detectedScales.length === 0) {
+    // Fallback al sistema original
+    const originalResult = originalDetectScales(notes);
+    return {
+      scale: originalResult.primaryScale || {
+        name: 'Unknown',
+        tonic: '',
+        type: 'MAJOR',
+        notes: [],
+        confidence: 0,
+        mode: '',
+        degrees: [],
+        missingNotes: [],
+        extraNotes: pitchClasses,
+        compatibility: 0,
+        quality: 'weak'
+      },
+      confidence: originalResult.primaryScale?.confidence || 0,
+      alternatives: originalResult.alternativeScales.slice(0, 3),
+      reasoning: 'No match found in scale database',
+      certainty: 'low',
+      exactMatch: false
+    };
+  }
+
+  const best = detectedScales[0];
+  const alternatives = detectedScales.slice(1, 4).map(d => d.scale);
+  
+  const reasoning = best.exactMatch 
+    ? `Perfect fit: ${best.scale.name}`
+    : `Best match: ${best.scale.name} (${Math.round(best.matchScore * 100)}% match)`;
+    
+  const certainty = best.exactMatch ? 'high' : 
+                    best.matchScore >= 0.7 ? 'medium' : 'low';
+
+  return {
+    scale: best.scale,
+    confidence: best.matchScore,
+    alternatives,
+    reasoning,
+    certainty,
+    exactMatch: best.exactMatch
+  };
 };
 
 // ========================================================================================
-// MEMORIA MUSICAL
+// FUNCIONES AUXILIARES
 // ========================================================================================
 
-class MusicalMemory {
-  private context: MusicalContext = {
-    recentChords: [],
-    recentScales: [],
-    establishedKey: null,
-    progressionHistory: []
+/**
+ * Calcula el score de coincidencia para acordes
+ */
+const calculateChordMatchScore = (
+  commonNotes: number,
+  missingNotes: number,
+  extraNotes: number,
+  totalChordNotes: number
+): number => {
+  // Penalizar más las notas faltantes que las extras para acordes
+  const commonRatio = commonNotes / totalChordNotes;
+  const missingPenalty = missingNotes * 0.3;
+  const extraPenalty = extraNotes * 0.1;
+  
+  return Math.max(0, commonRatio - missingPenalty - extraPenalty);
+};
+
+/**
+ * Calcula el score de coincidencia para escalas
+ */
+const calculateScaleMatchScore = (
+  playedNotes: number,
+  missingNotes: number,
+  extraNotes: number,
+  totalScaleNotes: number,
+  isExactMatch: boolean
+): number => {
+  if (isExactMatch && extraNotes === 0) return 1.0;
+  
+  const coverageRatio = playedNotes / totalScaleNotes;
+  const accuracyRatio = playedNotes / (playedNotes + extraNotes);
+  
+  // Para escalas, valoramos tanto la cobertura como la precisión
+  const baseScore = (coverageRatio * 0.6) + (accuracyRatio * 0.4);
+  
+  // Penalizaciones
+  const extraPenalty = extraNotes * 0.15;
+  const missingPenalty = Math.min(missingNotes * 0.05, 0.3); // Límite de penalización
+  
+  return Math.max(0, baseScore - extraPenalty - missingPenalty);
+};
+
+/**
+ * Determina la calidad basada en confianza y notas faltantes
+ */
+const getQuality = (confidence: number, missingNotes: number): 'perfect' | 'good' | 'partial' | 'weak' => {
+  if (confidence >= 0.95 && missingNotes === 0) return 'perfect';
+  if (confidence >= 0.8 && missingNotes <= 1) return 'good';
+  if (confidence >= 0.6 && missingNotes <= 2) return 'partial';
+  return 'weak';
+};
+
+/**
+ * Detecta la inversión del acorde
+ */
+const detectInversion = (playedNotes: string[], chordNotes: string[]): number => {
+  if (playedNotes.length === 0) return 0;
+  
+  const bassNote = playedNotes[0]; // Primera nota tocada
+  const rootIndex = chordNotes.findIndex(note => note === bassNote);
+  
+  return rootIndex > 0 ? rootIndex : 0;
+};
+
+/**
+ * Mapea tipos de acordes reales a patrones
+ */
+const mapRealChordTypeToPattern = (realType: string): keyof typeof CHORD_PATTERNS => {
+  const mapping: Record<string, keyof typeof CHORD_PATTERNS> = {
+    'Major': 'MAJOR',
+    'Minor': 'MINOR',
+    'Diminished': 'DIMINISHED',
+    'Augmented': 'AUGMENTED',
+    'Dominant 7th': 'DOMINANT_7',
+    'Major 7th': 'MAJOR_7',
+    'Minor 7th': 'MINOR_7',
+    'Minor Major 7th': 'MINOR_MAJOR_7',
+    'Sus 2': 'SUS_2',
+    'Sus 4': 'SUS_4',
+    '6': 'SIXTH',
+    'Minor 6': 'MINOR_SIXTH',
+    '9': 'NINTH',
+    'Minor 9': 'MINOR_NINTH',
+    'Major 9': 'MAJOR_NINTH',
+    'add 9': 'ADD_9',
+    '5': 'MAJOR' // Power chord, default to major
   };
-
-  updateChord(chord: DetectedChord): void {
-    this.context.recentChords.push(chord);
-    if (this.context.recentChords.length > 8) {
-      this.context.recentChords.shift();
-    }
-    this.context.progressionHistory.push(chord.name);
-  }
-
-  updateScale(scale: DetectedScale): void {
-    this.context.recentScales.push(scale);
-    if (this.context.recentScales.length > 5) {
-      this.context.recentScales.shift();
-    }
-    this.updateEstablishedKey();
-  }
-
-  private updateEstablishedKey(): void {
-    if (this.context.recentScales.length < 2) return;
-    
-    const recentTonics = this.context.recentScales.slice(-3).map(s => s.tonic);
-    const tonicCounts = recentTonics.reduce((acc, tonic) => {
-      acc[tonic] = (acc[tonic] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    const dominantTonic = Object.entries(tonicCounts)
-      .sort(([,a], [,b]) => b - a)[0];
-    
-    if (dominantTonic && dominantTonic[1] >= 2) {
-      this.context.establishedKey = dominantTonic[0];
-    }
-  }
-
-  getContext(): MusicalContext {
-    return { ...this.context };
-  }
-
-  reset(): void {
-    this.context = {
-      recentChords: [],
-      recentScales: [],
-      establishedKey: null,
-      progressionHistory: []
-    };
-  }
-}
-
-// Instancia global
-const globalMemory = new MusicalMemory();
-
-// ========================================================================================
-// ALGORITMOS DE OPTIMIZACIÓN
-// ========================================================================================
+  
+  return mapping[realType] || 'MAJOR';
+};
 
 /**
- * Resuelve casos idénticos aplicando reglas de precedencia
+ * Mapea tipos de escalas reales a patrones
  */
-function resolveIdenticalCases<T extends DetectedChord | DetectedScale>(
-  candidates: T[]
-): T[] {
-  if (candidates.length <= 1) return candidates;
-
-  const { identicalScales } = OPTIMIZATION_CONFIG.precedenceRules;
-  
-  return candidates.filter(candidate => {
-    const conflicting = candidates.find(other => 
-      other !== candidate && 
-      Math.abs(other.confidence - candidate.confidence) < 0.01
-    );
-    
-    if (conflicting) {
-      // Aplicar reglas de precedencia para escalas
-      if ('mode' in candidate) {
-        const preferred = identicalScales.get(candidate.type);
-        const conflictingPreferred = identicalScales.get(conflicting.type);
-        
-        if (preferred === conflicting.type) return false; // Eliminar este
-        if (conflictingPreferred === candidate.type) return true; // Mantener este
-      }
-    }
-    
-    return true;
-  });
-}
-
-/**
- * Calcula scoring contextual
- */
-function calculateContextualScore<T extends DetectedChord | DetectedScale>(
-  candidate: T,
-  context: MusicalContext
-): number {
-  let score = 0;
-  
-  // 1. Compatibilidad con acordes recientes
-  if (context.recentChords.length > 0) {
-    const isCompatible = isHarmonicallyCompatible(candidate, context);
-    score += isCompatible ? 0.3 : -0.1;
-  }
-  
-  // 2. Coherencia con tonalidad establecida
-  if (context.establishedKey) {
-    const candidateRoot = 'root' in candidate ? candidate.root : candidate.tonic;
-    if (candidateRoot === context.establishedKey) {
-      score += 0.4;
-    }
-  }
-  
-  // 3. Peso por tipo común
-  const commonTypes = ['MAJOR', 'MINOR', 'DOMINANT_7', 'NATURAL_MINOR'];
-  if (commonTypes.includes(candidate.type)) {
-    score += 0.2;
-  }
-  
-  return Math.max(0, Math.min(1, score));
-}
-
-function isHarmonicallyCompatible<T extends DetectedChord | DetectedScale>(
-  candidate: T,
-  context: MusicalContext
-): boolean {
-  if (context.recentChords.length === 0) return true;
-  
-  const lastChord = context.recentChords[context.recentChords.length - 1];
-  const candidateRoot = 'root' in candidate ? candidate.root : candidate.tonic;
-  
-  // Intervalos armónicos comunes (4ª, 5ª, 3ª)
-  const rootDistance = getIntervalDistance(lastChord.root, candidateRoot);
-  const harmonicIntervals = [5, 7, 3, 4, 8, 9]; // 4ª, 5ª, 3ª mayor/menor, 6ª
-  
-  return harmonicIntervals.includes(rootDistance);
-}
-
-function getIntervalDistance(note1: string, note2: string): number {
-  const index1 = CHROMATIC_NOTES.indexOf(note1 as any);
-  const index2 = CHROMATIC_NOTES.indexOf(note2 as any);
-  
-  if (index1 === -1 || index2 === -1) return 0;
-  return (index2 - index1 + 12) % 12;
-}
-
-/**
- * Calcula scoring combinado final
- */
-function calculateFinalScore<T extends DetectedChord | DetectedScale>(
-  candidate: T & { contextScore: number }
-): number {
-  const weights = OPTIMIZATION_CONFIG.weights;
-  
-  return (
-    candidate.confidence * weights.noteMatch +
-    candidate.contextScore * weights.contextualFit +
-    getCommonalityScore(candidate) * weights.commonality +
-    getTemporalScore(candidate) * weights.temporalConsistency +
-    getStabilityScore(candidate) * weights.harmonicStability
-  );
-}
-
-function getCommonalityScore<T extends DetectedChord | DetectedScale>(candidate: T): number {
-  const commonTypes = ['MAJOR', 'MINOR', 'DOMINANT_7', 'MAJOR_7', 'NATURAL_MINOR', 'DORIAN'];
-  return commonTypes.includes(candidate.type) ? 0.8 : 0.5;
-}
-
-function getTemporalScore<T extends DetectedChord | DetectedScale>(candidate: T): number {
-  const context = globalMemory.getContext();
-  const recentTypes = [
-    ...context.recentChords.map(c => c.type),
-    ...context.recentScales.map(s => s.type)
-  ];
-  
-  return recentTypes.includes(candidate.type) ? 0.7 : 0.4;
-}
-
-function getStabilityScore<T extends DetectedChord | DetectedScale>(candidate: T): number {
-  const stableTypes = ['MAJOR', 'MINOR', 'NATURAL_MINOR'];
-  return stableTypes.includes(candidate.type) ? 0.8 : 0.6;
-}
-
-/**
- * Determina nivel de certeza
- */
-function determineCertainty(
-  winnerScore: number,
-  allScores: number[]
-): 'high' | 'medium' | 'low' {
-  const { highCertainty, mediumCertainty } = OPTIMIZATION_CONFIG.thresholds;
-  
-  if (winnerScore >= highCertainty) {
-    const secondBest = Math.max(...allScores.filter(s => s < winnerScore));
-    const margin = winnerScore - secondBest;
-    
-    return margin >= 0.15 ? 'high' : 'medium';
-  }
-  
-  return winnerScore >= mediumCertainty ? 'medium' : 'low';
-}
-
-/**
- * Genera explicación del resultado
- */
-function generateReasoning<T extends DetectedChord | DetectedScale>(
-  winner: T,
-  alternatives: T[],
-  type: 'chord' | 'scale'
-): string {
-  const reasons = [];
-  
-  if (winner.confidence >= 0.9) {
-    reasons.push('coincidencia perfecta de notas');
-  } else if (winner.confidence >= 0.7) {
-    reasons.push('buena coincidencia de notas');
-  }
-  
-  if (alternatives.length === 0) {
-    reasons.push('único candidato viable');
-  } else {
-    reasons.push(`superó ${alternatives.length} alternativas`);
-  }
-  
-  const commonTypes = ['MAJOR', 'MINOR', 'NATURAL_MINOR'];
-  if (commonTypes.includes(winner.type)) {
-    reasons.push('patrón musical común');
-  }
-  
-  return `Seleccionado por: ${reasons.join(', ')}`;
-}
-
-// ========================================================================================
-// FUNCIONES PRINCIPALES OPTIMIZADAS
-// ========================================================================================
-
-/**
- * FUNCIÓN PRINCIPAL PARA ACORDES - Usa tu sistema existente y lo optimiza
- */
-export function detectOptimalChord(notes: NoteName[]): OptimizedChordResult | null {
-  // 1. Usar tu sistema existente para obtener candidatos
-  const originalResult: ChordDetectionResult = originalDetectChords(notes);
-  
-  // 2. Recopilar todos los candidatos
-  const allCandidates = [
-    ...(originalResult.primaryChord ? [originalResult.primaryChord] : []),
-    ...originalResult.alternativeChords
-  ];
-  
-  if (allCandidates.length === 0) return null;
-  
-  // 3. Filtrar candidatos viables
-  const viableCandidates = allCandidates.filter(c => 
-    c.confidence >= OPTIMIZATION_CONFIG.thresholds.minimumAcceptable &&
-    c.quality !== 'weak'
-  );
-  
-  if (viableCandidates.length === 0) {
-    return {
-      chord: allCandidates[0],
-      confidence: allCandidates[0].confidence,
-      alternatives: [],
-      reasoning: 'Único candidato disponible (baja confianza)',
-      certainty: 'low'
-    };
-  }
-  
-  if (viableCandidates.length === 1) {
-    const winner = viableCandidates[0];
-    globalMemory.updateChord(winner);
-    
-    return {
-      chord: winner,
-      confidence: winner.confidence,
-      alternatives: [],
-      reasoning: 'Único candidato viable',
-      certainty: winner.confidence >= OPTIMIZATION_CONFIG.thresholds.highCertainty ? 'high' : 'medium'
-    };
-  }
-  
-  // 4. Optimización avanzada para múltiples candidatos
-  const resolved = resolveIdenticalCases(viableCandidates);
-  const context = globalMemory.getContext();
-  
-  // 5. Calcular scores contextuales
-  const withContext = resolved.map(candidate => ({
-    ...candidate,
-    contextScore: calculateContextualScore(candidate, context)
-  }));
-  
-  // 6. Calcular scores finales
-  const withFinalScores = withContext.map(candidate => ({
-    ...candidate,
-    finalScore: calculateFinalScore(candidate)
-  }));
-  
-  // 7. Seleccionar ganador
-  const winner = withFinalScores.reduce((best, current) => 
-    current.finalScore > best.finalScore ? current : best
-  );
-  
-  // 8. Preparar alternativas
-  const alternatives = withFinalScores
-    .filter(c => c !== winner)
-    .sort((a, b) => b.finalScore - a.finalScore)
-    .slice(0, 3)
-    .map(({ contextScore, finalScore, ...chord }) => chord);
-  
-  // 9. Actualizar memoria y devolver resultado
-  globalMemory.updateChord(winner);
-  
-  const allFinalScores = withFinalScores.map(c => c.finalScore);
-  
-  return {
-    chord: winner,
-    confidence: winner.finalScore,
-    alternatives,
-    reasoning: generateReasoning(winner, alternatives, 'chord'),
-    certainty: determineCertainty(winner.finalScore, allFinalScores)
+const mapRealScaleTypeToPattern = (realType: string): keyof typeof SCALE_PATTERNS => {
+  const mapping: Record<string, keyof typeof SCALE_PATTERNS> = {
+    'Major': 'MAJOR',
+    'Natural Minor': 'NATURAL_MINOR',
+    'Harmonic Minor': 'HARMONIC_MINOR',
+    'Melodic Minor Ascending': 'MELODIC_MINOR',
+    'Melodic Minor Descending': 'NATURAL_MINOR',
+    'Major Pentatonic': 'MAJOR_PENTATONIC',
+    'Minor Pentatonic': 'MINOR_PENTATONIC',
+    'Major Blues': 'MAJOR_BLUES',
+    'Minor Blues': 'BLUES',
+    'Ionian': 'IONIAN',
+    'Dorian': 'DORIAN',
+    'Phrygian': 'PHRYGIAN',
+    'Lydian': 'LYDIAN',
+    'Mixolydian': 'MIXOLYDIAN',
+    'Aeolian': 'AEOLIAN',
+    'Locrian': 'LOCRIAN',
+    'Major Bebop': 'MAJOR_BEBOP',
+    'Minor Bebop': 'MINOR_BEBOP',
+    'Super Locrian': 'SUPER_LOCRIAN',
+    'Nine Tone': 'NINE_TONE',
+    'Algerian': 'ALGERIAN',
+    'Arabic': 'ARABIC',
+    'Augmented': 'AUGMENTED',
+    'Balinese': 'BALINESE',
+    'Byzantine': 'BYZANTINE',
+    'Chinese': 'CHINESE',
+    'Diminished': 'DIMINISHED',
+    'Dominant Diminished': 'DOMINANT_DIMINISHED',
+    'Egyptian': 'EGYPTIAN',
+    'Eight Tone Spanish': 'EIGHT_TONE_SPANISH',
+    'Enigmatic': 'ENIGMATIC',
+    'Geez': 'GEEZ',
+    'Hawaiian': 'HAWAIIAN',
+    'Hindu': 'HINDU',
+    'Hirajoshi': 'HIRAJOSHI',
+    'Hungarian Gypsy': 'HUNGARIAN_GYPSY',
+    'Hungarian Major': 'HUNGARIAN_MAJOR',
+    'Iberian': 'IBERIAN',
+    'Indian Ascending': 'INDIAN_ASCENDING',
+    'Indian Descending': 'INDIAN_DESCENDING',
+    'Iwato': 'IWATO',
+    'Japanese': 'JAPANESE',
+    'Lydian #5': 'LYDIAN_SHARP_5',
+    'Lydian b7': 'LYDIAN_FLAT_7',
+    'Neapolitan Minor': 'NEAPOLITAN_MINOR',
+    'Neapolitan Major': 'NEAPOLITAN_MAJOR',
+    'Oriental': 'ORIENTAL',
+    'Prometheus': 'PROMETHEUS',
+    'Romanian Minor': 'ROMANIAN_MINOR',
+    'Spanish Gypsy': 'SPANISH_GYPSY',
+    'Whole Tone': 'WHOLE_TONE',
+    'Yo': 'YO',
+    'Chromatic': 'CHROMATIC'
   };
-}
-
-/**
- * FUNCIÓN PRINCIPAL PARA ESCALAS - Usa tu sistema existente y lo optimiza
- */
-export function detectOptimalScale(notes: NoteName[]): OptimizedScaleResult | null {
-  // 1. Usar tu sistema existente para obtener candidatos
-  const originalResult: ScaleDetectionResult = originalDetectScales(notes);
   
-  // 2. Recopilar todos los candidatos
-  const allCandidates = [
-    ...(originalResult.primaryScale ? [originalResult.primaryScale] : []),
-    ...originalResult.alternativeScales
-  ];
-  
-  if (allCandidates.length === 0) return null;
-  
-  // 3. Filtrar candidatos viables
-  const viableCandidates = allCandidates.filter(c => 
-    c.confidence >= OPTIMIZATION_CONFIG.thresholds.minimumAcceptable &&
-    c.quality !== 'weak'
-  );
-  
-  if (viableCandidates.length === 0) {
-    return {
-      scale: allCandidates[0],
-      confidence: allCandidates[0].confidence,
-      alternatives: [],
-      reasoning: 'Único candidato disponible (baja confianza)',
-      certainty: 'low'
-    };
-  }
-  
-  if (viableCandidates.length === 1) {
-    const winner = viableCandidates[0];
-    globalMemory.updateScale(winner);
-    
-    return {
-      scale: winner,
-      confidence: winner.confidence,
-      alternatives: [],
-      reasoning: 'Único candidato viable',
-      certainty: winner.confidence >= OPTIMIZATION_CONFIG.thresholds.highCertainty ? 'high' : 'medium'
-    };
-  }
-  
-  // 4. Optimización avanzada para múltiples candidatos
-  const resolved = resolveIdenticalCases(viableCandidates);
-  const context = globalMemory.getContext();
-  
-  // 5. Calcular scores contextuales
-  const withContext = resolved.map(candidate => ({
-    ...candidate,
-    contextScore: calculateContextualScore(candidate, context)
-  }));
-  
-  // 6. Calcular scores finales
-  const withFinalScores = withContext.map(candidate => ({
-    ...candidate,
-    finalScore: calculateFinalScore(candidate)
-  }));
-  
-  // 7. Seleccionar ganador
-  const winner = withFinalScores.reduce((best, current) => 
-    current.finalScore > best.finalScore ? current : best
-  );
-  
-  // 8. Preparar alternativas
-  const alternatives = withFinalScores
-    .filter(c => c !== winner)
-    .sort((a, b) => b.finalScore - a.finalScore)
-    .slice(0, 3)
-    .map(({ contextScore, finalScore, ...scale }) => scale);
-  
-  // 9. Actualizar memoria y devolver resultado
-  globalMemory.updateScale(winner);
-  
-  const allFinalScores = withFinalScores.map(c => c.finalScore);
-  
-  return {
-    scale: winner,
-    confidence: winner.finalScore,
-    alternatives,
-    reasoning: generateReasoning(winner, alternatives, 'scale'),
-    certainty: determineCertainty(winner.finalScore, allFinalScores)
-  };
-}
+  return mapping[realType] || 'MAJOR';
+};
 
 // ========================================================================================
-// API PÚBLICA Y UTILIDADES
+// EXPORTACIÓN PRINCIPAL
 // ========================================================================================
 
-/**
- * Reinicia la memoria musical (útil para testing o cambio de contexto)
- */
-export function resetMusicalContext(): void {
-  globalMemory.reset();
-}
+console.log('🎯 Sistema de detección optimizado con PRECISIÓN EXACTA cargado');
+console.log('✅ Usando base de datos REAL_CHORDS y REAL_SCALES');
+console.log('🎵 Detección de alta precisión activa');
 
-/**
- * Obtiene estadísticas del sistema optimizado
- */
-export function getOptimizationStats() {
-  const context = globalMemory.getContext();
-  return {
-    recentChords: context.recentChords.length,
-    recentScales: context.recentScales.length,
-    establishedKey: context.establishedKey,
-    progressionLength: context.progressionHistory.length,
-    lastProgression: context.progressionHistory.slice(-5)
-  };
-}
-
-/**
- * Compatibilidad: envuelve el resultado optimizado en el formato original
- */
-export function detectChordsOptimized(notes: NoteName[]): ChordDetectionResult {
-  const optimized = detectOptimalChord(notes);
-  
-  if (!optimized) {
-    return {
-      primaryChord: null,
-      alternativeChords: [],
-      timestamp: Date.now(),
-      inputNotes: notes
-    };
-  }
-  
-  return {
-    primaryChord: optimized.chord,
-    alternativeChords: optimized.alternatives,
-    timestamp: Date.now(),
-    inputNotes: notes
-  };
-}
-
-/**
- * Compatibilidad: envuelve el resultado optimizado en el formato original
- */
-export function detectScalesOptimized(notes: NoteName[]): ScaleDetectionResult {
-  const optimized = detectOptimalScale(notes);
-  
-  if (!optimized) {
-    return {
-      primaryScale: null,
-      alternativeScales: [],
-      suggestedKey: null,
-      modalInterchange: [],
-      timestamp: Date.now(),
-      inputNotes: notes,
-      analysis: {
-        tonalCenter: null,
-        modality: 'unknown',
-        stabilityScore: 0,
-        chromaticism: 0,
-        suggestions: []
-      }
-    };
-  }
-  
-  return {
-    primaryScale: optimized.scale,
-    alternativeScales: optimized.alternatives,
-    suggestedKey: optimized.scale.tonic,
-    modalInterchange: [],
-    timestamp: Date.now(),
-    inputNotes: notes,
-    analysis: {
-      tonalCenter: optimized.scale.tonic,
-      modality: optimized.scale.type.includes('MAJOR') ? 'major' : 
-                optimized.scale.type.includes('MINOR') ? 'minor' : 'modal',
-      stabilityScore: optimized.confidence,
-      chromaticism: 0,
-      suggestions: [optimized.reasoning]
-    }
-  };
-}
-
-console.log('🎯 Sistema de detección optimizado cargado');
-console.log('✅ Integración con sistemas existentes completa');
-console.log('🧠 Memoria musical contextual activa');
+export default {
+  detectChordsOptimized,
+  detectScalesOptimized
+};

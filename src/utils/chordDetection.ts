@@ -8,7 +8,7 @@ import {
   CHORD_PATTERNS, 
   CHORD_NAMES, 
   CHROMATIC_NOTES,
-  type ChromaticNote // Importar el tipo
+  type ChromaticNote
 } from '../data/musicalData';
 import {
   getNoteName,
@@ -138,35 +138,50 @@ const detectChordType = (intervals: number[]): {
   
   // Probar cada patrón de acorde
   Object.entries(CHORD_PATTERNS).forEach(([chordType, pattern]) => {
-    // Convertir readonly array a mutable array
+    // Convertir readonly array a mutable para manipulación
     const mutablePattern = [...pattern];
-    const normalizedPattern = normalizePattern(mutablePattern);
+    const normalizedChordPattern = normalizePattern(mutablePattern);
     
-    // Comparar con acorde fundamental
-    const fundamentalConfidence = comparePatterns(normalizedIntervals, normalizedPattern);
-    
-    if (fundamentalConfidence > bestMatch.confidence) {
-      bestMatch = {
-        type: chordType as keyof typeof CHORD_PATTERNS,
-        confidence: fundamentalConfidence,
-        inversion: 0
+    // Comparar patrones directamente
+    if (arraysEqual(normalizedIntervals, normalizedChordPattern)) {
+      bestMatch = { 
+        type: chordType as keyof typeof CHORD_PATTERNS, 
+        confidence: 1.0, 
+        inversion: 0 
       };
+      return;
     }
     
-    // Si consideramos inversiones, probar rotaciones del patrón
-    if (defaultConfig.considerInversions && mutablePattern.length > 2) {
-      for (let inversion = 1; inversion < mutablePattern.length; inversion++) {
-        const invertedPattern = createInvertedPattern(mutablePattern, inversion);
+    // Probar inversiones si está habilitado
+    if (intervals.length === pattern.length) {
+      for (let inv = 0; inv < pattern.length; inv++) {
+        const invertedPattern = rotateArray(mutablePattern, inv);
         const normalizedInverted = normalizePattern(invertedPattern);
-        const inversionConfidence = comparePatterns(normalizedIntervals, normalizedInverted);
         
-        if (inversionConfidence > bestMatch.confidence) {
-          bestMatch = {
-            type: chordType as keyof typeof CHORD_PATTERNS,
-            confidence: inversionConfidence,
-            inversion
-          };
+        if (arraysEqual(normalizedIntervals, normalizedInverted)) {
+          const confidence = inv === 0 ? 1.0 : 0.9; // Penalizar ligeramente las inversiones
+          
+          if (confidence > bestMatch.confidence) {
+            bestMatch = { 
+              type: chordType as keyof typeof CHORD_PATTERNS, 
+              confidence, 
+              inversion: inv 
+            };
+          }
         }
+      }
+    }
+    
+    // Detectar acordes incompletos
+    if (intervals.length < pattern.length) {
+      const matchScore = calculatePartialMatch(normalizedIntervals, normalizedChordPattern);
+      
+      if (matchScore > bestMatch.confidence) {
+        bestMatch = {
+          type: chordType as keyof typeof CHORD_PATTERNS,
+          confidence: matchScore,
+          inversion: 0
+        };
       }
     }
   });
@@ -175,54 +190,46 @@ const detectChordType = (intervals: number[]): {
 };
 
 /**
- * Crea un patrón invertido de acorde
+ * Compara dos arrays
  */
-const createInvertedPattern = (pattern: number[], inversion: number): number[] => {
-  if (inversion === 0 || inversion >= pattern.length) return pattern;
-  
-  const inverted = [...pattern];
-  
-  // Mover las notas del bajo hacia arriba
-  for (let i = 0; i < inversion; i++) {
-    const note = inverted.shift()!;
-    inverted.push(note + 12); // Una octava arriba
-  }
-  
-  return inverted;
+const arraysEqual = (a: number[], b: number[]): boolean => {
+  if (a.length !== b.length) return false;
+  return a.every((val, index) => val === b[index]);
 };
 
 /**
- * Compara dos patrones de intervalos y retorna similitud (0-1)
+ * Rota un array
  */
-const comparePatterns = (pattern1: number[], pattern2: number[]): number => {
-  if (pattern1.length === 0 || pattern2.length === 0) return 0;
-  
-  // Convertir ambos patrones a sets para comparación
-  const set1 = new Set(pattern1);
-  const set2 = new Set(pattern2);
-  
-  // Calcular intersección y unión
-  const intersection = new Set([...set1].filter(x => set2.has(x)));
-  const union = new Set([...set1, ...set2]);
-  
-  // Similitud de Jaccard
-  const jaccardSimilarity = intersection.size / union.size;
-  
-  // Bonificación si los intervalos esenciales están presentes
-  let bonus = 0;
-  if (set1.has(0)) bonus += 0.1; // raíz
-  if (set1.has(4) || set1.has(3)) bonus += 0.1; // tercera
-  if (set1.has(7)) bonus += 0.1; // quinta
-  
-  return Math.min(1, jaccardSimilarity + bonus);
+const rotateArray = (arr: number[], positions: number): number[] => {
+  if (positions === 0 || arr.length === 0) return arr;
+  const actualPositions = positions % arr.length;
+  return [...arr.slice(actualPositions), ...arr.slice(0, actualPositions)];
 };
 
 /**
- * Encuentra notas faltantes y extras en un acorde
+ * Calcula coincidencia parcial entre patrones
+ */
+const calculatePartialMatch = (partial: number[], full: number[]): number => {
+  if (partial.length === 0 || full.length === 0) return 0;
+  
+  let matches = 0;
+  partial.forEach(interval => {
+    if (full.includes(interval)) matches++;
+  });
+  
+  const matchRatio = matches / partial.length;
+  const completenessRatio = partial.length / full.length;
+  
+  // Ponderar tanto la coincidencia como la completitud
+  return matchRatio * 0.7 + completenessRatio * 0.3;
+};
+
+/**
+ * Analiza la completitud del acorde
  */
 const analyzeChordCompleteness = (
-  inputNotes: string[],
-  expectedPattern: readonly number[], // Aceptar readonly array
+  inputNotes: string[], 
+  expectedPattern: readonly number[], 
   root: ChromaticNote
 ): { missing: string[]; extra: string[] } => {
   const rootIndex = CHROMATIC_NOTES.findIndex(note => note === root);
@@ -233,16 +240,16 @@ const analyzeChordCompleteness = (
     const noteIndex = (rootIndex + interval) % 12;
     // Validar que el índice está en rango
     if (noteIndex >= 0 && noteIndex < CHROMATIC_NOTES.length) {
-      return CHROMATIC_NOTES[noteIndex] as string; // CORRECCIÓN: Convertir a string
+      return CHROMATIC_NOTES[noteIndex] as string;
     }
     return '';
   }).filter(note => note !== ''); // Filtrar notas vacías
   
   const inputSet = new Set(inputNotes);
-  const expectedSet = new Set(expectedNotes); // Ahora expectedSet es Set<string>
+  const expectedSet = new Set(expectedNotes);
   
   const missing = expectedNotes.filter(note => !inputSet.has(note));
-  const extra = inputNotes.filter(note => !expectedSet.has(note)); // CORRECCIÓN: Ahora funciona
+  const extra = inputNotes.filter(note => !expectedSet.has(note));
   
   return { missing, extra };
 };

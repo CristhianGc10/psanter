@@ -237,7 +237,7 @@ const generateAllKeyCoordinates = (): KeyCoordinate[] => {
 // Array completo de coordenadas para las 88 teclas 
 // ORDEN LÓGICO: A0 (índice 0, izquierda) → C8 (índice 87, derecha)
 // COORDENADAS CON TRANSFORMACIÓN Y CORRECTA PARA SVG
-export const PIANO_KEY_COORDINATES: KeyCoordinate[] = generateAllKeyCoordinates();
+const PIANO_KEY_COORDINATES_INTERNAL: KeyCoordinate[] = generateAllKeyCoordinates();
 
 // Verificación de que tenemos exactamente 88 notas en orden correcto
 if (PIANO_NOTES.length !== 88) {
@@ -255,22 +255,22 @@ if (PIANO_NOTES[87] !== 'C8') {
 
 // Función para obtener coordenadas por nota
 export const getCoordinatesByNote = (note: NoteName): KeyCoordinate | undefined => {
-  return PIANO_KEY_COORDINATES.find(coord => coord.note === note);
+  return PIANO_KEY_COORDINATES_INTERNAL.find(coord => coord.note === note);
 };
 
 // Función para obtener coordenadas por índice
 export const getCoordinatesByIndex = (index: number): KeyCoordinate | undefined => {
-  return PIANO_KEY_COORDINATES[index];
+  return PIANO_KEY_COORDINATES_INTERNAL[index];
 };
 
 // Función para obtener todas las teclas blancas
 export const getWhiteKeyCoordinates = (): KeyCoordinate[] => {
-  return PIANO_KEY_COORDINATES.filter(coord => coord.isWhite);
+  return PIANO_KEY_COORDINATES_INTERNAL.filter(coord => coord.isWhite);
 };
 
 // Función para obtener todas las teclas negras
 export const getBlackKeyCoordinates = (): KeyCoordinate[] => {
-  return PIANO_KEY_COORDINATES.filter(coord => coord.isBlack);
+  return PIANO_KEY_COORDINATES_INTERNAL.filter(coord => coord.isBlack);
 };
 
 // Función para verificar si un punto está dentro de una tecla
@@ -327,3 +327,21 @@ if (a0Coords && c8Coords) {
   console.log('- C8 posición X:', c8Coords.x, '(debe estar cerca de 187)');
   console.log('- Orden visual verificado:', a0Coords.x < c8Coords.x ? '✅ Correcto' : '❌ Error');
 }
+
+// =============================================================================
+// CÓDIGO DE COMPATIBILIDAD HACIA ATRÁS - Agregar este código al FINAL del archivo:
+// =============================================================================
+
+// Crear un objeto de coordenadas para compatibilidad con el código antiguo
+const PIANO_KEY_COORDINATES_OBJ = {} as Record<NoteName, string>;
+
+// Convertir el array a objeto
+PIANO_KEY_COORDINATES_INTERNAL.forEach(keyCoord => {
+  PIANO_KEY_COORDINATES_OBJ[keyCoord.note] = keyCoord.coordinates;
+});
+
+// Exportar como objeto (esto sobrescribe la exportación del array)
+export { PIANO_KEY_COORDINATES_OBJ as PIANO_KEY_COORDINATES };
+
+// También exportar el array original con otro nombre si es necesario
+export const PIANO_KEY_COORDINATES_ARRAY = generateAllKeyCoordinates();
