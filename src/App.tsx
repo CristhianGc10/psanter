@@ -2,48 +2,43 @@ import React, { useState, useEffect } from 'react';
 import { 
   getWhiteKeyCoordinates,
   getBlackKeyCoordinates,
-  SVG_CONFIG, 
-  KEY_COLORS
+  SVG_CONFIG
 } from './data/pianoCoordinates';
 import type { NoteName } from './types/piano';
 
-// Importar el sistema optimizado
+// Importar el nuevo sistema simplificado
 import {
-  detectChordsOptimized,
-  detectScalesOptimized,
-  type OptimizedChordResult,
-  type OptimizedScaleResult
-} from './utils/optimizedDetection';
+  detectMusic,
+  formatChordDisplay,
+  formatScaleDisplay,
+  getChordNotes,
+  getScaleNotes,
+  hasExactDetection,
+  type SimplifiedDetectionResult
+} from './utils/exactDetection';
 
 function App() {
-  // Estados esenciales
+  // Estados principales
   const [hoveredKey, setHoveredKey] = useState<NoteName | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<NoteName>>(new Set());
-  const [chordResult, setChordResult] = useState<OptimizedChordResult | null>(null);
-  const [scaleResult, setScaleResult] = useState<OptimizedScaleResult | null>(null);
+  const [detectionResult, setDetectionResult] = useState<SimplifiedDetectionResult | null>(null);
 
-  // Obtener las teclas usando las funciones auxiliares
+  // Obtener coordenadas de las teclas
   const whiteKeys = getWhiteKeyCoordinates();
   const blackKeys = getBlackKeyCoordinates();
 
-  // Actualizar detección cuando cambian las teclas seleccionadas
+  // Detección en tiempo real cuando cambian las teclas seleccionadas
   useEffect(() => {
     if (selectedKeys.size > 0) {
       const notesArray = Array.from(selectedKeys);
-      
-      // Usar el sistema optimizado
-      const detectedChord = detectChordsOptimized(notesArray);
-      const detectedScale = detectScalesOptimized(notesArray);
-      
-      setChordResult(detectedChord);
-      setScaleResult(detectedScale);
+      const result = detectMusic(notesArray);
+      setDetectionResult(result);
     } else {
-      setChordResult(null);
-      setScaleResult(null);
+      setDetectionResult(null);
     }
   }, [selectedKeys]);
 
-  // Componente para tecla del piano
+  // Componente para tecla individual con contornos ultra-finos
   const PianoKey: React.FC<{ 
     note: NoteName; 
     coordinates: string; 
@@ -52,27 +47,50 @@ function App() {
     const isHovered = hoveredKey === note;
     const isSelected = selectedKeys.has(note);
     
-    const fillColor = isSelected 
-      ? (isWhite ? '#4f46e5' : '#6366f1')
-      : isHovered 
-        ? (isWhite ? KEY_COLORS.WHITE.pressed : KEY_COLORS.BLACK.pressed)
-        : (isWhite ? KEY_COLORS.WHITE.default : KEY_COLORS.BLACK.default);
+    // Colores con contornos ultra-sutiles
+    const getFillColor = () => {
+      if (isSelected) {
+        return isWhite ? '#4f46e5' : '#6366f1';
+      }
+      if (isHovered) {
+        return isWhite ? '#f8f9fa' : '#2a2a2a';
+      }
+      return isWhite ? '#ffffff' : '#1a1a1a';
+    };
 
-    const strokeColor = isWhite ? '#e5e7eb' : '#9ca3af';
-    const strokeWidth = 0.5;
+    const getStrokeColor = () => {
+      if (isSelected) {
+        return isWhite ? 'rgba(79, 70, 229, 0.3)' : 'rgba(99, 102, 241, 0.3)';
+      }
+      return isWhite ? 'rgba(200, 200, 200, 0.15)' : 'rgba(100, 100, 100, 0.2)';
+    };
+
+    // Efectos de sombra muy sutiles
+    const getShadowFilter = () => {
+      if (isSelected) {
+        const color = isWhite ? '79, 70, 229' : '99, 102, 241';
+        return `drop-shadow(0 0 3px rgba(${color}, 0.4))`;
+      }
+      if (isHovered) {
+        return 'drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.15)) brightness(1.02)';
+      }
+      return 'drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.08))';
+    };
 
     return (
       <polygon
         points={coordinates}
-        fill={fillColor}
-        stroke={strokeColor}
-        strokeWidth={strokeWidth}
+        fill={getFillColor()}
+        stroke={getStrokeColor()}
+        strokeWidth={0.08} // Ultra-fino
         onMouseEnter={() => setHoveredKey(note)}
         onMouseLeave={() => setHoveredKey(null)}
         onClick={() => toggleKey(note)}
         style={{ 
           cursor: 'pointer',
-          transition: 'fill 0.15s ease'
+          transition: 'all 0.12s ease',
+          filter: getShadowFilter(),
+          transform: isHovered ? 'translateY(0.3px)' : 'none'
         }}
       />
     );
@@ -98,20 +116,20 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black text-white p-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-6xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent mb-4">
+        {/* Header - Solo título */}
+        <div className="text-center mb-12">
+          <h1 className="text-7xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent mb-4">
             🎹 Psanter
           </h1>
-          <p className="text-gray-300 text-lg">
-            Sistema de detección musical de alta precisión
+          <p className="text-gray-300 text-xl">
+            Detección musical exacta con soporte multi-octava
           </p>
         </div>
 
-        {/* Piano SVG */}
-        <div className="bg-black/60 rounded-2xl p-8 shadow-2xl backdrop-blur-sm border border-white/10">
+        {/* Piano */}
+        <div className="bg-black/60 rounded-2xl p-8 shadow-2xl backdrop-blur-sm border border-white/10 mb-8">
           <div className="w-full overflow-x-auto pb-4">
             <div style={{ minWidth: '1200px' }}>
               <svg
@@ -120,8 +138,11 @@ function App() {
                 viewBox={`0 0 ${SVG_CONFIG.width} ${SVG_CONFIG.height}`}
                 preserveAspectRatio="xMidYMid meet"
                 xmlns="http://www.w3.org/2000/svg"
-                className="border border-gray-700 rounded-lg"
-                style={{ backgroundColor: '#0a0a0a' }}
+                className="border-0 rounded-lg"
+                style={{ 
+                  backgroundColor: '#0a0a0a',
+                  outline: 'none'
+                }}
               >
                 {/* Renderizar teclas blancas primero */}
                 {whiteKeys.map((keyCoord) => (
@@ -146,240 +167,121 @@ function App() {
             </div>
           </div>
           
-          {/* Control rápido y estadísticas */}
-          <div className="flex justify-between items-center mt-4 text-sm">
-            <div className="text-gray-300">
-              {selectedKeys.size > 0 ? (
-                <span>
-                  Notas seleccionadas: <span className="font-mono text-blue-400">
-                    {Array.from(selectedKeys).sort().join(', ')}
-                  </span> ({selectedKeys.size})
-                </span>
-              ) : (
-                <span className="text-gray-500">
-                  Haz clic en las teclas para seleccionar notas
-                </span>
-              )}
+          {/* Control básico */}
+          <div className="flex justify-between items-center mt-4">
+            <div className="text-gray-300 text-sm">
+              {selectedKeys.size > 0 
+                ? `${selectedKeys.size} teclas seleccionadas`
+                : 'Selecciona teclas para detectar acordes y escalas'
+              }
             </div>
-            
             {selectedKeys.size > 0 && (
               <button
                 onClick={clearSelection}
-                className="px-4 py-1.5 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium transition-colors shadow-sm"
+                className="px-4 py-2 bg-red-600/80 hover:bg-red-600 rounded-lg text-white transition-colors text-sm"
               >
-                Limpiar selección
+                Limpiar
               </button>
             )}
           </div>
         </div>
 
-        {/* Resultados de Detección - Sistema Optimizado */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        {/* Resultados de detección - Solo acorde y escala */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           
-          {/* Acorde Detectado con Precisión */}
-          <div className="bg-black/40 rounded-xl p-6 backdrop-blur-sm border border-white/10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-green-400">
-                🎵 Acorde Detectado
-              </h3>
-              {chordResult?.exactMatch && (
-                <span className="text-xs bg-gradient-to-r from-green-600 to-green-500 px-3 py-1 rounded-full font-medium">
-                  ✨ Coincidencia Exacta
-                </span>
-              )}
-            </div>
+          {/* Acorde detectado */}
+          <div className="bg-black/40 rounded-xl p-8 backdrop-blur-sm border border-white/10">
+            <h2 className="text-3xl font-bold text-blue-400 mb-6 text-center">
+              🎵 Acorde
+            </h2>
             
-            {chordResult && chordResult.chord ? (
-              <div className="space-y-4">
-                <div className="bg-green-900/30 border border-green-600/30 p-4 rounded-lg">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h4 className="font-bold text-2xl text-green-100">{chordResult.chord.name}</h4>
-                      <p className="text-sm text-green-300 mt-1">
-                        Raíz: <span className="font-mono bg-green-800/50 px-2 py-0.5 rounded">{chordResult.chord.root}</span>
-                        {' • '}
-                        Tipo: <span className="font-mono">{chordResult.chord.type}</span>
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`text-sm px-3 py-1 rounded-md font-medium ${
-                        chordResult.chord.quality === 'perfect' ? 'bg-green-600 text-white' :
-                        chordResult.chord.quality === 'good' ? 'bg-blue-600 text-white' :
-                        chordResult.chord.quality === 'partial' ? 'bg-yellow-600 text-gray-900' : 
-                        'bg-gray-600 text-white'
-                      }`}>
-                        {(chordResult.confidence * 100).toFixed(0)}%
-                      </span>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        chordResult.certainty === 'high' ? 'bg-purple-600/80' :
-                        chordResult.certainty === 'medium' ? 'bg-blue-600/80' : 
-                        'bg-gray-600/80'
-                      }`}>
-                        Certeza: {chordResult.certainty}
-                      </span>
-                    </div>
+            <div className="text-center">
+              {detectionResult?.chord ? (
+                <>
+                  <div className="text-4xl font-bold mb-4">
+                    {formatChordDisplay(detectionResult.chord)}
                   </div>
-                  
-                  {chordResult.chord.inversion > 0 && (
-                    <p className="text-sm text-green-300">
-                      Inversión: <span className="font-mono">{chordResult.chord.inversion}ª</span>
-                    </p>
+                  <div className="text-gray-300 text-lg">
+                    {getChordNotes(detectionResult.chord)}
+                  </div>
+                  {detectionResult.chord.isExactMatch && (
+                    <div className="mt-4 inline-block bg-green-600/20 text-green-400 px-4 py-2 rounded-full text-sm font-medium">
+                      ✓ Coincidencia Exacta
+                    </div>
                   )}
-                  
-                  <p className="mt-3 text-xs text-green-200/70 italic">
-                    💡 {chordResult.reasoning}
+                </>
+              ) : (
+                <div className="text-gray-400 py-12">
+                  <div className="text-6xl mb-4">🎼</div>
+                  <p className="text-xl">
+                    {selectedKeys.size < 2 
+                      ? 'Selecciona al menos 2 teclas'
+                      : 'No se detectó ningún acorde'
+                    }
                   </p>
                 </div>
-                
-                {/* Detalles técnicos */}
-                {(chordResult.chord.missingNotes.length > 0 || chordResult.chord.extraNotes.length > 0) && (
-                  <div className="bg-gray-800/30 rounded-lg p-3 text-xs">
-                    {chordResult.chord.missingNotes.length > 0 && (
-                      <p className="text-yellow-400">
-                        Notas faltantes: {chordResult.chord.missingNotes.join(', ')}
-                      </p>
-                    )}
-                    {chordResult.chord.extraNotes.length > 0 && (
-                      <p className="text-blue-400">
-                        Notas adicionales: {chordResult.chord.extraNotes.join(', ')}
-                      </p>
-                    )}
-                  </div>
-                )}
-                
-                {/* Alternativas */}
-                {chordResult.alternatives.length > 0 && (
-                  <div className="pt-3 border-t border-green-600/20">
-                    <p className="text-xs text-green-300/60 mb-2">Otras posibilidades:</p>
-                    <div className="flex gap-2 flex-wrap">
-                      {chordResult.alternatives.map((alt, i) => (
-                        <span key={i} className="text-xs bg-green-800/30 px-3 py-1 rounded-md border border-green-700/30">
-                          {alt.name} <span className="text-green-400">({(alt.confidence * 100).toFixed(0)}%)</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-gray-400">
-                <div className="text-4xl mb-3 opacity-50">🎵</div>
-                <p>Selecciona al menos 2 notas para detectar acordes</p>
-              </div>
-            )}
-          </div>
-
-          {/* Escala Detectada con Precisión */}
-          <div className="bg-black/40 rounded-xl p-6 backdrop-blur-sm border border-white/10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-blue-400">
-                🎼 Escala Detectada
-              </h3>
-              {scaleResult?.exactMatch && (
-                <span className="text-xs bg-gradient-to-r from-blue-600 to-blue-500 px-3 py-1 rounded-full font-medium">
-                  ✨ Coincidencia Exacta
-                </span>
               )}
             </div>
+          </div>
+
+          {/* Escala detectada */}
+          <div className="bg-black/40 rounded-xl p-8 backdrop-blur-sm border border-white/10">
+            <h2 className="text-3xl font-bold text-purple-400 mb-6 text-center">
+              🎼 Escala
+            </h2>
             
-            {scaleResult && scaleResult.scale ? (
-              <div className="space-y-4">
-                <div className="bg-blue-900/30 border border-blue-600/30 p-4 rounded-lg">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h4 className="font-bold text-2xl text-blue-100">{scaleResult.scale.name}</h4>
-                      <p className="text-sm text-blue-300 mt-1">
-                        Tónica: <span className="font-mono bg-blue-800/50 px-2 py-0.5 rounded">{scaleResult.scale.tonic}</span>
-                        {' • '}
-                        Modo: <span className="font-mono">{scaleResult.scale.mode}</span>
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`text-sm px-3 py-1 rounded-md font-medium ${
-                        scaleResult.scale.quality === 'perfect' ? 'bg-green-600 text-white' :
-                        scaleResult.scale.quality === 'good' ? 'bg-blue-600 text-white' :
-                        scaleResult.scale.quality === 'partial' ? 'bg-yellow-600 text-gray-900' : 
-                        'bg-gray-600 text-white'
-                      }`}>
-                        {(scaleResult.confidence * 100).toFixed(0)}%
-                      </span>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        scaleResult.certainty === 'high' ? 'bg-purple-600/80' :
-                        scaleResult.certainty === 'medium' ? 'bg-blue-600/80' : 
-                        'bg-gray-600/80'
-                      }`}>
-                        Certeza: {scaleResult.certainty}
-                      </span>
-                    </div>
+            <div className="text-center">
+              {detectionResult?.scale ? (
+                <>
+                  <div className="text-4xl font-bold mb-4">
+                    {formatScaleDisplay(detectionResult.scale)}
                   </div>
-                  
-                  <p className="mt-3 text-xs text-blue-200/70 italic">
-                    💡 {scaleResult.reasoning}
+                  <div className="text-gray-300 text-lg">
+                    {getScaleNotes(detectionResult.scale)}
+                  </div>
+                  {detectionResult.scale.isExactMatch && (
+                    <div className="mt-4 inline-block bg-green-600/20 text-green-400 px-4 py-2 rounded-full text-sm font-medium">
+                      ✓ Coincidencia Exacta
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-gray-400 py-12">
+                  <div className="text-6xl mb-4">🎹</div>
+                  <p className="text-xl">
+                    {selectedKeys.size < 3 
+                      ? 'Selecciona al menos 3 teclas'
+                      : 'No se detectó ninguna escala'
+                    }
                   </p>
                 </div>
-                
-                {/* Notas de la escala */}
-                <div className="bg-blue-900/20 rounded-lg p-3">
-                  <p className="text-xs text-blue-300/80 mb-2">Notas completas de la escala:</p>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {scaleResult.scale.notes.map((note, i) => {
-                      const isPlayed = Array.from(selectedKeys).some(k => k.startsWith(note));
-                      return (
-                        <span 
-                          key={i} 
-                          className={`text-sm px-3 py-1.5 rounded-md font-mono transition-all ${
-                            isPlayed 
-                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' 
-                              : 'bg-blue-800/30 text-blue-300/60 border border-blue-700/30'
-                          }`}
-                        >
-                          {note}
-                        </span>
-                      );
-                    })}
-                  </div>
-                  {scaleResult.scale.missingNotes.length > 0 && (
-                    <p className="text-xs text-yellow-400/80 mt-2">
-                      Faltan: {scaleResult.scale.missingNotes.join(', ')} para completar la escala
-                    </p>
-                  )}
-                </div>
-                
-                {/* Alternativas */}
-                {scaleResult.alternatives.length > 0 && (
-                  <div className="pt-3 border-t border-blue-600/20">
-                    <p className="text-xs text-blue-300/60 mb-2">Otras posibilidades:</p>
-                    <div className="flex gap-2 flex-wrap">
-                      {scaleResult.alternatives.map((alt, i) => (
-                        <span key={i} className="text-xs bg-blue-800/30 px-3 py-1 rounded-md border border-blue-700/30">
-                          {alt.name} <span className="text-blue-400">({(alt.confidence * 100).toFixed(0)}%)</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-gray-400">
-                <div className="text-4xl mb-3 opacity-50">🎼</div>
-                <p>Selecciona al menos 3 notas para detectar escalas</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-          
         </div>
 
-        {/* Info adicional sobre precisión */}
-        <div className="mt-8 text-center">
-          <div className="inline-flex items-center gap-4 text-xs text-gray-500 bg-black/30 px-4 py-2 rounded-lg">
-            <span>💡 Sistema de detección con base de datos completa</span>
-            <span>•</span>
-            <span>✨ = Patrón musical exacto</span>
-            <span>•</span>
-            <span>88 teclas interactivas</span>
+        {/* Mensaje de soporte multi-octava */}
+        {selectedKeys.size > 0 && detectionResult?.hasDetection && (
+          <div className="mt-8 text-center">
+            <div className="bg-blue-600/20 border border-blue-400/30 rounded-xl p-4">
+              <p className="text-blue-300 text-sm">
+                ✨ <strong>Multi-octava:</strong> Puedes tocar las mismas notas en diferentes octavas del piano
+              </p>
+              <p className="text-blue-400/70 text-xs mt-1">
+                Ejemplo: C4 + E4 + G4 = C5 + E5 + G5 = Ambos son C Major
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Footer simplificado */}
+        <div className="mt-12 text-center">
+          <div className="bg-black/20 rounded-xl p-4 border border-white/10">
+            <p className="text-gray-400 text-sm">
+              🎯 <strong>Fase 3:</strong> Detección exacta • Contornos ultra-finos • Soporte multi-octava
+            </p>
           </div>
         </div>
-        
       </div>
     </div>
   );

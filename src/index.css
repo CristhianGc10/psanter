@@ -1,21 +1,41 @@
 /* Importar Tailwind CSS v4 */
 @import "tailwindcss";
 
-/* Variables CSS personalizadas para el piano */
+/* Variables CSS personalizadas para el piano - FASE 3 MEJORADA */
 :root {
-  /* Colores del piano */
+  /* Colores del piano con contornos ultra-finos */
   --piano-white-key: #ffffff;
   --piano-white-key-pressed: #e0e0e0;
   --piano-white-key-sustained: #f0f0f0;
+  --piano-white-key-selected: #4f46e5;
+  
   --piano-black-key: #1a1a1a;
   --piano-black-key-pressed: #404040;
   --piano-black-key-sustained: #2a2a2a;
+  --piano-black-key-selected: #6366f1;
+  
+  /* Contornos ultra-finos - MEJORA PRINCIPAL FASE 3 */
+  --piano-stroke-width: 0.08;
+  --piano-stroke-white: rgba(200, 200, 200, 0.15);
+  --piano-stroke-white-hover: rgba(200, 200, 200, 0.25);
+  --piano-stroke-white-selected: rgba(79, 70, 229, 0.3);
+  
+  --piano-stroke-black: rgba(100, 100, 100, 0.2);
+  --piano-stroke-black-hover: rgba(100, 100, 100, 0.3);
+  --piano-stroke-black-selected: rgba(99, 102, 241, 0.3);
   
   /* Colores del tema */
   --primary-purple: #8b5cf6;
   --primary-pink: #ec4899;
+  --primary-blue: #3b82f6;
   --background-dark: #0f172a;
   --background-card: rgba(0, 0, 0, 0.4);
+  
+  /* Sombras sutiles para definición */
+  --piano-shadow-subtle: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.08));
+  --piano-shadow-hover: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.15));
+  --piano-shadow-selected-white: drop-shadow(0 0 3px rgba(79, 70, 229, 0.4));
+  --piano-shadow-selected-black: drop-shadow(0 0 3px rgba(99, 102, 241, 0.4));
   
   /* Dimensiones del piano */
   --piano-height: 8rem; /* 128px */
@@ -72,31 +92,112 @@ body {
   background: rgba(139, 92, 246, 0.8);
 }
 
-/* Estilos específicos del piano */
+/* ======================================================================================== */
+/* ESTILOS ESPECÍFICOS DEL PIANO - FASE 3 CON CONTORNOS ULTRA-FINOS */
+/* ======================================================================================== */
+
 .piano-svg {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
   transition: filter 0.3s ease;
+  /* Eliminar cualquier borde del contenedor SVG */
+  outline: none;
+  border: none;
 }
 
 .piano-svg:hover {
   filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
 }
 
-/* Animaciones de teclas del piano */
+/* Estilos base para teclas del piano con contornos ultra-finos */
 .piano-key {
-  transition: all 0.1s ease;
+  /* Transiciones suaves y rápidas */
+  transition: all 0.12s ease;
   cursor: pointer;
+  
+  /* Contorno ultra-fino - MEJORA PRINCIPAL */
+  stroke-width: var(--piano-stroke-width);
+  
+  /* Sombra sutil para definir teclas sin contornos gruesos */
+  filter: var(--piano-shadow-subtle);
 }
 
-.piano-key:hover {
-  filter: brightness(1.1);
+/* Estados específicos para teclas blancas */
+.piano-key.white-key {
+  fill: var(--piano-white-key);
+  stroke: var(--piano-stroke-white);
+}
+
+.piano-key.white-key:hover {
+  fill: var(--piano-white-key-pressed);
+  stroke: var(--piano-stroke-white-hover);
+  filter: var(--piano-shadow-hover) brightness(1.02);
+  transform: translateY(0.3px);
+}
+
+.piano-key.white-key.selected {
+  fill: var(--piano-white-key-selected);
+  stroke: var(--piano-stroke-white-selected);
+  filter: var(--piano-shadow-selected-white);
+}
+
+.piano-key.white-key.pressed {
+  fill: var(--piano-white-key-pressed);
+  filter: var(--piano-shadow-hover) brightness(0.9);
   transform: translateY(1px);
 }
 
-.piano-key:active {
-  transform: translateY(2px);
-  filter: brightness(0.9);
+/* Estados específicos para teclas negras */
+.piano-key.black-key {
+  fill: var(--piano-black-key);
+  stroke: var(--piano-stroke-black);
 }
+
+.piano-key.black-key:hover {
+  fill: var(--piano-black-key-pressed);
+  stroke: var(--piano-stroke-black-hover);
+  filter: var(--piano-shadow-hover) brightness(1.1);
+  transform: translateY(0.3px);
+}
+
+.piano-key.black-key.selected {
+  fill: var(--piano-black-key-selected);
+  stroke: var(--piano-stroke-black-selected);
+  filter: var(--piano-shadow-selected-black);
+}
+
+.piano-key.black-key.pressed {
+  fill: var(--piano-black-key-pressed);
+  filter: var(--piano-shadow-hover) brightness(0.8);
+  transform: translateY(1px);
+}
+
+/* Estados de teclas más específicos para mejor UX */
+.piano-key:active {
+  transform: translateY(1.5px);
+  transition: all 0.05s ease;
+}
+
+/* Para teclas sostenidas */
+.piano-key.sustained.white-key {
+  fill: var(--piano-white-key-sustained);
+  filter: var(--piano-shadow-hover);
+  animation: subtle-glow 2s ease-in-out infinite alternate;
+}
+
+.piano-key.sustained.black-key {
+  fill: var(--piano-black-key-sustained);
+  filter: var(--piano-shadow-hover);
+  animation: subtle-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes subtle-glow {
+  0% { filter: var(--piano-shadow-hover) brightness(1); }
+  100% { filter: var(--piano-shadow-hover) brightness(1.1); }
+}
+
+/* ======================================================================================== */
+/* ESTILOS PARA TARJETAS Y PANELES */
+/* ======================================================================================== */
 
 /* Estilos para estadísticas y tarjetas */
 .stats-card {
@@ -130,7 +231,18 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
-/* Botones y elementos interactivos */
+/* Texto con degradado azul-morado */
+.gradient-text-blue {
+  background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ======================================================================================== */
+/* BOTONES Y ELEMENTOS INTERACTIVOS */
+/* ======================================================================================== */
+
 .interactive-element {
   transition: all 0.2s ease;
 }
@@ -143,6 +255,44 @@ body {
   transform: scale(0.95);
 }
 
+/* Botones específicos para el piano */
+.piano-button {
+  background: rgba(79, 70, 229, 0.8);
+  border: 1px solid rgba(79, 70, 229, 0.5);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.piano-button:hover {
+  background: rgba(79, 70, 229, 1);
+  border-color: rgba(79, 70, 229, 0.8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.piano-button:active {
+  transform: translateY(0);
+}
+
+/* Botón de limpiar */
+.clear-button {
+  background: rgba(239, 68, 68, 0.8);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.clear-button:hover {
+  background: rgba(239, 68, 68, 1);
+  border-color: rgba(239, 68, 68, 0.8);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+/* ======================================================================================== */
+/* ANIMACIONES Y EFECTOS */
+/* ======================================================================================== */
+
 /* Loading animation */
 .loading-spinner {
   animation: spin 1s linear infinite;
@@ -153,8 +303,36 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* Responsive design helpers */
+/* Animación de pulso para elementos destacados */
+.pulse-highlight {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(79, 70, 229, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(79, 70, 229, 0.6); }
+}
+
+/* Animación de entrada suave */
+.fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ======================================================================================== */
+/* RESPONSIVE DESIGN */
+/* ======================================================================================== */
+
 @media (max-width: 768px) {
+  :root {
+    /* Contornos aún más finos en móviles */
+    --piano-stroke-width: 0.05;
+  }
+  
   .piano-svg {
     height: 6rem; /* Altura reducida en móviles */
   }
@@ -162,14 +340,34 @@ body {
   .stats-card {
     padding: 1rem;
   }
+  
+  /* Teclas más fáciles de tocar en móvil */
+  .piano-key {
+    stroke-width: 0.05;
+  }
 }
 
-/* Accesibilidad */
+@media (max-width: 480px) {
+  :root {
+    /* En pantallas muy pequeñas, contornos casi invisibles */
+    --piano-stroke-width: 0.03;
+  }
+}
+
+/* ======================================================================================== */
+/* ACCESIBILIDAD */
+/* ======================================================================================== */
+
+/* Reducir animaciones para usuarios que las prefieren reducidas */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  
+  .piano-key {
+    transition: none;
   }
 }
 
@@ -179,7 +377,19 @@ body {
   outline-offset: 2px;
 }
 
-/* Utilidades personalizadas */
+/* Contraste alto para usuarios que lo necesiten */
+@media (prefers-contrast: high) {
+  :root {
+    --piano-stroke-width: 0.15; /* Contornos ligeramente más visibles */
+    --piano-stroke-white: rgba(200, 200, 200, 0.4);
+    --piano-stroke-black: rgba(100, 100, 100, 0.5);
+  }
+}
+
+/* ======================================================================================== */
+/* UTILIDADES PERSONALIZADAS */
+/* ======================================================================================== */
+
 .text-shadow {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
@@ -188,13 +398,57 @@ body {
   box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
 }
 
-/* Estados de las teclas */
-.key-pressed {
-  filter: brightness(0.8);
-  transform: translateY(1px);
+.box-shadow-blue {
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
 }
 
-.key-sustained {
-  filter: brightness(1.1);
-  box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+/* Estados específicos para las detecciones */
+.detection-exact {
+  border-color: rgba(34, 197, 94, 0.5);
+  background: rgba(34, 197, 94, 0.1);
 }
+
+.detection-partial {
+  border-color: rgba(234, 179, 8, 0.5);
+  background: rgba(234, 179, 8, 0.1);
+}
+
+.detection-weak {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Badges y etiquetas */
+.badge-exact {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge-confidence {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* ======================================================================================== */
+/* ESTADOS FINALES Y VERIFICACIONES */
+/* ======================================================================================== */
+
+/* Verificar que todos los contornos sean ultra-finos */
+polygon, rect, path {
+  stroke-width: inherit;
+}
+
+/* Asegurar que no hay contornos por defecto en elementos SVG */
+svg * {
+  vector-effect: non-scaling-stroke;
+}
+
+/* Comentarios para debugging en desarrollo */
+/* 
+Contornos configurados a 0.08px - prácticamente imperceptibles
+Sombras sutiles reemplazan contornos gruesos
+Transiciones suaves de 0.12s para mejor UX
+Compatible con móviles y accesibilidad
+*/
