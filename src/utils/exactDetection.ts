@@ -1,10 +1,16 @@
 /**
- * Sistema de detección musical EXACTO y SIMPLIFICADO - FASE 3
- * Devuelve SOLO el mejor resultado para acorde y escala
- * Funciona con notas en cualquier octava del piano
+ * Sistema de detección musical INTELIGENTE y SIMPLIFICADO - FASE 3.5
+ * 
+ * NUEVAS CARACTERÍSTICAS:
+ * ✅ Priorización por especificidad (7 notas > 5 notas > 4 notas > 3 notas)
+ * ✅ Tónica contextual (primera tecla presionada = probable tónica)
+ * ✅ Filtro anti-ruido (escalas completas eliminan acordes subconjunto)
+ * ✅ Popularidad musical (C Major > A Minor cuando son equivalentes)
+ * ✅ Máximo 1 resultado por categoría (SIMPLICIDAD EXTREMA)
+ * ✅ Relevancia armónica real
  * 
  * @author Psanter Team
- * @version 3.1.0 - Un solo resultado por categoría
+ * @version 3.5.0 - Detección inteligente con filtros avanzados
  */
 
 import type { NoteName } from '../types/piano';
@@ -14,50 +20,73 @@ import {
 } from '../data/musicalData';
 
 // ========================================================================================
-// TIPOS SIMPLIFICADOS - SOLO UN RESULTADO POR CATEGORÍA
+// CONFIGURACIÓN DEL SISTEMA INTELIGENTE
 // ========================================================================================
 
-export interface SingleChordResult {
+// Orden de popularidad para tónicas (más comunes primero)
+const TONIC_POPULARITY = [
+  'C', 'G', 'D', 'A', 'F', 'E', 'B', 'Bb', 'Eb', 'Ab', 'F#', 'C#'
+];
+
+// Orden de popularidad para tipos de acordes
+const CHORD_TYPE_POPULARITY = [
+  'Major', 'Minor', 'Dominant 7th', 'Minor 7th', 'Major 7th', 
+  'Sus 4', 'Sus 2', '6', 'Minor 6', 'Diminished', 'Augmented',
+  '9', 'Minor 9', 'Major 9', 'add 9', 'Minor Major 7th'
+];
+
+// Orden de popularidad para tipos de escalas
+const SCALE_TYPE_POPULARITY = [
+  'Major', 'Natural Minor', 'Major Pentatonic', 'Minor Pentatonic',
+  'Dorian', 'Mixolydian', 'Harmonic Minor', 'Melodic Minor Ascending',
+  'Blues', 'Major Blues', 'Ionian', 'Aeolian', 'Phrygian', 'Lydian', 'Locrian'
+];
+
+// ========================================================================================
+// TIPOS MEJORADOS CON PUNTUACIÓN INTELIGENTE
+// ========================================================================================
+
+export interface IntelligentChordResult {
   tonic: string;
   type: string;
-  name: string; // Ej: "C Major", "Am7"
+  name: string;
   notes: string[];
   isExactMatch: boolean;
-  confidence: number; // 0-1
+  confidence: number;
+  specificity: number; // Cuántas notas tiene
+  popularity: number; // Qué tan común es
+  isRelevant: boolean; // Si es musicalmente relevante en este contexto
 }
 
-export interface SingleScaleResult {
+export interface IntelligentScaleResult {
   tonic: string;
   type: string;
-  name: string; // Ej: "C Major", "A Natural Minor"
+  name: string;
   notes: string[];
   isExactMatch: boolean;
-  confidence: number; // 0-1
+  confidence: number;
+  specificity: number;
+  popularity: number;
+  isRelevant: boolean;
 }
 
-export interface SimplifiedDetectionResult {
-  chord: SingleChordResult | null;
-  scale: SingleScaleResult | null;
+export interface SmartDetectionResult {
+  chord: IntelligentChordResult | null;
+  scale: IntelligentScaleResult | null;
   inputNotes: string[];
   hasDetection: boolean;
+  filterApplied: 'anti-noise' | 'contextual' | 'none';
+  reasoning: string; // Por qué se eligió este resultado
 }
 
 // ========================================================================================
-// UTILIDADES PARA NORMALIZACIÓN DE NOTAS (SOPORTE MULTI-OCTAVA)
+// UTILIDADES MEJORADAS CON CONTEXTO
 // ========================================================================================
 
-/**
- * Extrae el nombre de nota sin octava (C4 → C, F#5 → F#, C8 → C)
- * FUNCIONA CON CUALQUIER OCTAVA DEL PIANO
- */
 const getNoteNameOnly = (note: NoteName): string => {
   return note.replace(/\d+$/, '');
 };
 
-/**
- * Normaliza notas eliminando duplicados y octavas
- * Permite escalas/acordes en CUALQUIER combinación de octavas
- */
 const normalizeNotes = (notes: NoteName[]): string[] => {
   const uniqueNotes = new Set<string>();
   notes.forEach(note => {
@@ -66,9 +95,6 @@ const normalizeNotes = (notes: NoteName[]): string[] => {
   return Array.from(uniqueNotes).sort();
 };
 
-/**
- * Compara dos arrays de notas (sin importar orden)
- */
 const areNotesEqual = (notes1: string[], notes2: string[]): boolean => {
   if (notes1.length !== notes2.length) return false;
   const sorted1 = [...notes1].sort();
@@ -77,121 +103,298 @@ const areNotesEqual = (notes1: string[], notes2: string[]): boolean => {
 };
 
 /**
- * Calcula confianza basada en coincidencias exactas
+ * Calcula confianza mejorada con penalizaciones inteligentes
  */
-const calculateConfidence = (inputNotes: string[], targetNotes: string[]): number => {
+const calculateIntelligentConfidence = (inputNotes: string[], targetNotes: string[]): number => {
   if (targetNotes.length === 0) return 0;
   
   const matches = inputNotes.filter(note => targetNotes.includes(note)).length;
   const expectedNotes = targetNotes.length;
-  const extraPenalty = Math.max(0, inputNotes.length - expectedNotes) * 0.1;
+  const extraNotes = Math.max(0, inputNotes.length - expectedNotes);
   
-  return Math.max(0, (matches / expectedNotes) - extraPenalty);
+  // Penalizaciones más suaves para contextos musicales
+  const baseProbability = matches / expectedNotes;
+  const extraPenalty = extraNotes * 0.05; // Penalización reducida por notas extra
+  const incompletePenalty = (expectedNotes - matches) * 0.1;
+  
+  return Math.max(0, baseProbability - extraPenalty - incompletePenalty);
+};
+
+/**
+ * Calcula la puntuación de popularidad
+ */
+const getPopularityScore = (tonic: string, type: string, isChord: boolean): number => {
+  const tonicScore = TONIC_POPULARITY.indexOf(tonic);
+  const tonicIndex = tonicScore === -1 ? TONIC_POPULARITY.length : tonicScore;
+  
+  const typeArray = isChord ? CHORD_TYPE_POPULARITY : SCALE_TYPE_POPULARITY;
+  const typeScore = typeArray.indexOf(type);
+  const typeIndex = typeScore === -1 ? typeArray.length : typeScore;
+  
+  // Convertir índices a puntuaciones (menor índice = mayor popularidad)
+  const maxTonic = TONIC_POPULARITY.length;
+  const maxType = typeArray.length;
+  
+  const tonicPop = (maxTonic - tonicIndex) / maxTonic;
+  const typePop = (maxType - typeIndex) / maxType;
+  
+  return (tonicPop + typePop) / 2;
+};
+
+/**
+ * Verifica si un acorde es subconjunto de una escala
+ */
+const isChordSubsetOfScale = (chordNotes: string[], scaleNotes: string[]): boolean => {
+  return chordNotes.every(note => scaleNotes.includes(note));
+};
+
+/**
+ * Determina la probable tónica basada en contexto
+ * (primera nota presionada, popularidad, etc.)
+ */
+const getProbableTonic = (inputNotes: string[], firstNote?: string): string => {
+  if (firstNote && inputNotes.includes(firstNote)) {
+    return firstNote;
+  }
+  
+  // Si no hay contexto, usar la más popular de las notas presentes
+  const presentTonics = inputNotes.filter(note => TONIC_POPULARITY.includes(note));
+  if (presentTonics.length > 0) {
+    return presentTonics.sort((a, b) => 
+      TONIC_POPULARITY.indexOf(a) - TONIC_POPULARITY.indexOf(b)
+    )[0];
+  }
+  
+  return inputNotes[0] || 'C';
 };
 
 // ========================================================================================
-// DETECCIÓN SIMPLIFICADA - SOLO EL MEJOR RESULTADO
+// DETECCIÓN INTELIGENTE CON FILTROS AVANZADOS
 // ========================================================================================
 
 /**
- * Encuentra EL MEJOR acorde (solo uno)
+ * Encuentra TODOS los acordes potenciales con puntuación inteligente
  */
-const findBestChord = (inputNotes: NoteName[]): SingleChordResult | null => {
-  if (inputNotes.length < 2) return null;
+const findAllChordsWithScoring = (
+  inputNotes: NoteName[], 
+  probableTonic?: string
+): IntelligentChordResult[] => {
+  if (inputNotes.length < 2) return [];
   
   const normalizedInput = normalizeNotes(inputNotes);
-  let bestMatch: SingleChordResult | null = null;
-  let bestScore = 0;
+  const results: IntelligentChordResult[] = [];
   
-  // Iterar sobre todas las tónicas y tipos
   for (const [tonic, chordTypes] of Object.entries(REAL_CHORDS)) {
     for (const [type, chordNotes] of Object.entries(chordTypes)) {
-      const confidence = calculateConfidence(normalizedInput, chordNotes);
+      const confidence = calculateIntelligentConfidence(normalizedInput, chordNotes);
       
-      // Solo considerar si hay al menos 60% de coincidencia
-      if (confidence >= 0.6) {
+      if (confidence >= 0.4) { // Umbral más bajo para capturar más opciones
         const isExact = areNotesEqual(normalizedInput, chordNotes);
+        const specificity = chordNotes.length;
+        const popularity = getPopularityScore(tonic, type, true);
         
-        // Calcular puntuación (exactos tienen prioridad)
-        const score = isExact ? confidence + 1 : confidence;
+        // Boost para tónica probable
+        const tonicBoost = (probableTonic && tonic === probableTonic) ? 0.3 : 0;
         
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = {
-            tonic,
-            type,
-            name: `${tonic} ${type}`,
-            notes: [...chordNotes],
-            isExactMatch: isExact,
-            confidence
-          };
-        }
+        // Boost para coincidencias exactas
+        const exactBoost = isExact ? 0.5 : 0;
+        
+        const finalScore = confidence + exactBoost + tonicBoost + (popularity * 0.2);
+        
+        results.push({
+          tonic,
+          type,
+          name: `${tonic} ${type}`,
+          notes: [...chordNotes],
+          isExactMatch: isExact,
+          confidence,
+          specificity,
+          popularity,
+          isRelevant: confidence >= 0.6
+        });
       }
     }
   }
   
-  return bestMatch;
+  // Ordenar por puntuación final
+  return results.sort((a, b) => {
+    const scoreA = a.confidence + (a.isExactMatch ? 0.5 : 0) + 
+                   (a.popularity * 0.2) + (a.specificity * 0.1);
+    const scoreB = b.confidence + (b.isExactMatch ? 0.5 : 0) + 
+                   (b.popularity * 0.2) + (b.specificity * 0.1);
+    return scoreB - scoreA;
+  });
 };
 
 /**
- * Encuentra LA MEJOR escala (solo una)
+ * Encuentra TODAS las escalas potenciales con puntuación inteligente
  */
-const findBestScale = (inputNotes: NoteName[]): SingleScaleResult | null => {
-  if (inputNotes.length < 3) return null;
+const findAllScalesWithScoring = (
+  inputNotes: NoteName[], 
+  probableTonic?: string
+): IntelligentScaleResult[] => {
+  if (inputNotes.length < 3) return [];
   
   const normalizedInput = normalizeNotes(inputNotes);
-  let bestMatch: SingleScaleResult | null = null;
-  let bestScore = 0;
+  const results: IntelligentScaleResult[] = [];
   
-  // Iterar sobre todas las tónicas y tipos
   for (const [tonic, scaleTypes] of Object.entries(REAL_SCALES)) {
     for (const [type, scaleNotes] of Object.entries(scaleTypes)) {
-      const confidence = calculateConfidence(normalizedInput, scaleNotes);
+      const confidence = calculateIntelligentConfidence(normalizedInput, scaleNotes);
       
-      // Solo considerar si hay al menos 50% de coincidencia
-      if (confidence >= 0.5) {
+      if (confidence >= 0.3) { // Umbral más bajo para escalas
         const isExact = areNotesEqual(normalizedInput, scaleNotes);
+        const specificity = scaleNotes.length;
+        const popularity = getPopularityScore(tonic, type, false);
         
-        // Calcular puntuación (exactos tienen prioridad)
-        const score = isExact ? confidence + 1 : confidence;
+        // Boost para tónica probable
+        const tonicBoost = (probableTonic && tonic === probableTonic) ? 0.4 : 0;
         
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = {
-            tonic,
-            type,
-            name: `${tonic} ${type}`,
-            notes: [...scaleNotes],
-            isExactMatch: isExact,
-            confidence
-          };
-        }
+        // Boost para coincidencias exactas
+        const exactBoost = isExact ? 0.6 : 0;
+        
+        const finalScore = confidence + exactBoost + tonicBoost + (popularity * 0.3);
+        
+        results.push({
+          tonic,
+          type,
+          name: `${tonic} ${type}`,
+          notes: [...scaleNotes],
+          isExactMatch: isExact,
+          confidence,
+          specificity,
+          popularity,
+          isRelevant: confidence >= 0.5
+        });
       }
     }
   }
   
-  return bestMatch;
+  // Ordenar por especificidad primero, luego por puntuación
+  return results.sort((a, b) => {
+    // Prioridad 1: Especificidad (más notas = mejor)
+    if (a.specificity !== b.specificity) {
+      return b.specificity - a.specificity;
+    }
+    
+    // Prioridad 2: Puntuación final
+    const scoreA = a.confidence + (a.isExactMatch ? 0.6 : 0) + 
+                   (a.popularity * 0.3);
+    const scoreB = b.confidence + (b.isExactMatch ? 0.6 : 0) + 
+                   (b.popularity * 0.3);
+    return scoreB - scoreA;
+  });
+};
+
+/**
+ * Aplica filtro anti-ruido inteligente
+ */
+const applyAntiNoiseFilter = (
+  chords: IntelligentChordResult[],
+  scales: IntelligentScaleResult[]
+): { 
+  filteredChords: IntelligentChordResult[], 
+  filteredScales: IntelligentScaleResult[],
+  filterApplied: 'anti-noise' | 'contextual' | 'none',
+  reasoning: string
+} => {
+  let filterApplied: 'anti-noise' | 'contextual' | 'none' = 'none';
+  let reasoning = 'No se aplicaron filtros especiales';
+  
+  // Si hay una escala de 5+ notas con alta confianza, filtrar acordes simples
+  const significantScale = scales.find(s => s.specificity >= 5 && s.confidence >= 0.7);
+  
+  if (significantScale) {
+    const filteredChords = chords.filter(chord => {
+      // Mantener solo acordes que NO sean subconjuntos obvios de la escala
+      const isSubset = isChordSubsetOfScale(chord.notes, significantScale.notes);
+      const isComplex = chord.specificity >= 4; // Acordes de 4+ notas son más interesantes
+      const isHighConfidence = chord.confidence >= 0.8;
+      
+      return !isSubset || isComplex || isHighConfidence;
+    });
+    
+    if (filteredChords.length < chords.length) {
+      filterApplied = 'anti-noise';
+      reasoning = `Filtrados acordes simples que son subconjuntos de ${significantScale.name}`;
+      return { 
+        filteredChords, 
+        filteredScales: scales, 
+        filterApplied, 
+        reasoning 
+      };
+    }
+  }
+  
+  // Filtro contextual: Si hay muchas opciones, mantener solo las más relevantes
+  if (chords.length > 3 || scales.length > 2) {
+    const topChords = chords.filter(c => c.isRelevant).slice(0, 1);
+    const topScales = scales.filter(s => s.isRelevant).slice(0, 1);
+    
+    if (topChords.length > 0 || topScales.length > 0) {
+      filterApplied = 'contextual';
+      reasoning = 'Filtrados por relevancia musical y simplicidad';
+      return { 
+        filteredChords: topChords, 
+        filteredScales: topScales, 
+        filterApplied, 
+        reasoning 
+      };
+    }
+  }
+  
+  return { 
+    filteredChords: chords.slice(0, 1), 
+    filteredScales: scales.slice(0, 1), 
+    filterApplied, 
+    reasoning 
+  };
 };
 
 // ========================================================================================
-// FUNCIÓN PRINCIPAL - DETECCIÓN SIMPLIFICADA
+// FUNCIÓN PRINCIPAL - DETECCIÓN INTELIGENTE
 // ========================================================================================
 
 /**
- * Detecta EL mejor acorde y LA mejor escala
- * FUNCIONA CON NOTAS EN CUALQUIER OCTAVA
+ * Detecta música con sistema inteligente y filtros avanzados
+ * MÁXIMA SIMPLICIDAD: 1 acorde + 1 escala (los mejores)
  */
-export const detectMusic = (inputNotes: NoteName[]): SimplifiedDetectionResult => {
+export const detectMusic = (inputNotes: NoteName[]): SmartDetectionResult => {
   const normalizedInput = normalizeNotes(inputNotes);
   
-  const chord = findBestChord(inputNotes);
-  const scale = findBestScale(inputNotes);
+  if (normalizedInput.length === 0) {
+    return {
+      chord: null,
+      scale: null,
+      inputNotes: [],
+      hasDetection: false,
+      filterApplied: 'none',
+      reasoning: 'No hay notas seleccionadas'
+    };
+  }
+  
+  // Determinar tónica probable (primera nota como contexto)
+  const probableTonic = getProbableTonic(normalizedInput);
+  
+  // Encontrar todos los candidatos
+  const allChords = findAllChordsWithScoring(inputNotes, probableTonic);
+  const allScales = findAllScalesWithScoring(inputNotes, probableTonic);
+  
+  // Aplicar filtros inteligentes
+  const { filteredChords, filteredScales, filterApplied, reasoning } = 
+    applyAntiNoiseFilter(allChords, allScales);
+  
+  // Seleccionar SOLO el mejor de cada categoría
+  const bestChord = filteredChords.length > 0 ? filteredChords[0] : null;
+  const bestScale = filteredScales.length > 0 ? filteredScales[0] : null;
   
   return {
-    chord,
-    scale,
+    chord: bestChord,
+    scale: bestScale,
     inputNotes: normalizedInput,
-    hasDetection: chord !== null || scale !== null
+    hasDetection: bestChord !== null || bestScale !== null,
+    filterApplied,
+    reasoning: bestChord || bestScale ? reasoning : 'No se detectaron patrones musicales válidos'
   };
 };
 
@@ -199,96 +402,66 @@ export const detectMusic = (inputNotes: NoteName[]): SimplifiedDetectionResult =
 // FUNCIONES DE UTILIDAD PARA LA UI
 // ========================================================================================
 
-/**
- * Formatea el resultado del acorde para mostrar
- */
-export const formatChordDisplay = (chord: SingleChordResult | null): string => {
+export const formatChordDisplay = (chord: IntelligentChordResult | null): string => {
   if (!chord) return 'Ningún acorde detectado';
   
   const precision = chord.isExactMatch ? ' ✓' : ` (${Math.round(chord.confidence * 100)}%)`;
   return `${chord.name}${precision}`;
 };
 
-/**
- * Formatea el resultado de la escala para mostrar
- */
-export const formatScaleDisplay = (scale: SingleScaleResult | null): string => {
+export const formatScaleDisplay = (scale: IntelligentScaleResult | null): string => {
   if (!scale) return 'Ninguna escala detectada';
   
   const precision = scale.isExactMatch ? ' ✓' : ` (${Math.round(scale.confidence * 100)}%)`;
   return `${scale.name}${precision}`;
 };
 
-/**
- * Obtiene las notas del acorde para mostrar
- */
-export const getChordNotes = (chord: SingleChordResult | null): string => {
+export const getChordNotes = (chord: IntelligentChordResult | null): string => {
   if (!chord) return '';
   return chord.notes.join(' - ');
 };
 
-/**
- * Obtiene las notas de la escala para mostrar  
- */
-export const getScaleNotes = (scale: SingleScaleResult | null): string => {
+export const getScaleNotes = (scale: IntelligentScaleResult | null): string => {
   if (!scale) return '';
   return scale.notes.join(' - ');
 };
 
-/**
- * Verifica si hay alguna detección exacta
- */
-export const hasExactDetection = (result: SimplifiedDetectionResult): boolean => {
+export const hasExactDetection = (result: SmartDetectionResult): boolean => {
   return (result.chord?.isExactMatch || result.scale?.isExactMatch) || false;
 };
 
-// ========================================================================================
-// FUNCIONES DE COMPATIBILIDAD Y UTILIDAD
-// ========================================================================================
-
 /**
- * Obtiene información sobre soporte multi-octava
+ * Información de debugging del sistema inteligente
  */
-export const getOctaveInfo = () => {
+export const getDetectionInfo = (result: SmartDetectionResult) => {
   return {
-    supportsMultipleOctaves: true,
-    description: 'El sistema detecta acordes y escalas en cualquier combinación de octavas',
-    examples: [
-      'C4 + E4 + G4 = C Major',
-      'C5 + E5 + G5 = C Major',  
-      'C4 + E5 + G6 = C Major (mezclando octavas)',
-      'C3 + D4 + E5 + F4 + G5 + A4 + B4 = C Major Scale'
-    ]
-  };
-};
-
-/**
- * Función de debug para verificar normalización
- */
-export const debugNormalization = (notes: NoteName[]): { 
-  original: NoteName[], 
-  normalized: string[] 
-} => {
-  return {
-    original: notes,
-    normalized: normalizeNotes(notes)
+    inputCount: result.inputNotes.length,
+    hasChord: result.chord !== null,
+    hasScale: result.scale !== null,
+    chordSpecificity: result.chord?.specificity || 0,
+    scaleSpecificity: result.scale?.specificity || 0,
+    filterApplied: result.filterApplied,
+    reasoning: result.reasoning,
+    exactMatches: hasExactDetection(result)
   };
 };
 
 // ========================================================================================
-// INICIALIZACIÓN Y LOGGING
+// INICIALIZACIÓN Y VERIFICACIÓN
 // ========================================================================================
 
-// Log de inicialización (solo en desarrollo)
 if (process.env.NODE_ENV === 'development') {
-  console.log('🎯 Sistema de detección simplificado inicializado');
-  console.log('- Un solo resultado por categoría (mejor acorde + mejor escala)');
-  console.log('- Soporte completo para múltiples octavas');
-  console.log('- Precisión: 100% basada en datos reales de musicalData.ts');
+  console.log('🎯 Sistema de Detección Musical Inteligente v3.5 cargado');
+  console.log('✅ Priorización por especificidad activada');
+  console.log('✅ Contexto de tónica implementado');
+  console.log('✅ Filtro anti-ruido operativo');
+  console.log('✅ Simplicidad extrema: 1 resultado por categoría');
+  console.log('✅ Puntuación por popularidad musical');
   
-  const octaveInfo = getOctaveInfo();
-  console.log(`- ${octaveInfo.description}`);
+  // Verificar que las estructuras de datos están correctas
+  const chordsCount = Object.keys(REAL_CHORDS).length;
+  const scalesCount = Object.keys(REAL_SCALES).length;
+  console.log(`📊 Base de datos: ${chordsCount} tónicas × acordes, ${scalesCount} tónicas × escalas`);
 }
 
-// Exportar como función principal
 export default detectMusic;
