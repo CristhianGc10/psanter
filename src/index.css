@@ -1,62 +1,42 @@
 /* Importar Tailwind CSS v4 */
 @import "tailwindcss";
 
-/* Variables CSS para el sistema inteligente - FASE 3.5 */
+/* Variables CSS para el sistema de exploración */
 :root {
-  /* === COLORES DEL PIANO CON CONTORNOS ULTRA-FINOS === */
+  /* === COLORES DEL PIANO === */
   --piano-white-key: #ffffff;
-  --piano-white-key-pressed: #e0e0e0;
-  --piano-white-key-sustained: #f0f0f0;
-  --piano-white-key-selected: #4f46e5;
-  --piano-white-key-first: #10b981; /* Verde para primera tecla (tónica) */
+  --piano-white-key-hover: #f8f9fa;
+  --piano-white-key-selected: #10b981; /* Verde esmeralda */
   
   --piano-black-key: #1a1a1a;
-  --piano-black-key-pressed: #404040;
-  --piano-black-key-sustained: #2a2a2a;
-  --piano-black-key-selected: #6366f1;
-  --piano-black-key-first: #059669; /* Verde oscuro para primera tecla negra */
+  --piano-black-key-hover: #2a2a2a;
+  --piano-black-key-selected: #059669; /* Verde esmeralda oscuro */
   
-  /* === CONTORNOS ULTRA-FINOS - MEJORA PRINCIPAL === */
-  --piano-stroke-width: 0.08;
-  --piano-stroke-white: rgba(200, 200, 200, 0.15);
-  --piano-stroke-white-hover: rgba(200, 200, 200, 0.25);
-  --piano-stroke-white-selected: rgba(79, 70, 229, 0.3);
-  --piano-stroke-white-first: rgba(16, 185, 129, 0.4);
+  /* === CONTORNOS LIMPIOS === */
+  --piano-stroke-width: 0.1;
+  --piano-stroke-default: rgba(200, 200, 200, 0.3);
+  --piano-stroke-selected-white: rgba(16, 185, 129, 0.4);
+  --piano-stroke-selected-black: rgba(5, 150, 105, 0.4);
   
-  --piano-stroke-black: rgba(100, 100, 100, 0.2);
-  --piano-stroke-black-hover: rgba(100, 100, 100, 0.3);
-  --piano-stroke-black-selected: rgba(99, 102, 241, 0.3);
-  --piano-stroke-black-first: rgba(5, 150, 105, 0.4);
+  /* === COLORES DEL SISTEMA === */
+  --primary-emerald: #10b981;
+  --primary-cyan: #06b6d4;
+  --success-green: #22c55e;
+  --error-red: #ef4444;
   
-  /* === COLORES DEL SISTEMA INTELIGENTE === */
-  --intelligent-primary: #4f46e5;
-  --intelligent-secondary: #7c3aed;
-  --intelligent-accent: #06b6d4;
-  --intelligent-success: #10b981;
-  --intelligent-warning: #f59e0b;
-  --intelligent-error: #ef4444;
+  /* === GRADIENTES === */
+  --gradient-emerald: linear-gradient(135deg, #10b981, #06b6d4);
+  --gradient-success: linear-gradient(135deg, #22c55e, #16a34a);
+  --gradient-surface: rgba(0, 0, 0, 0.5);
   
-  /* === GRADIENTES INTELIGENTES === */
-  --gradient-intelligent: linear-gradient(135deg, #4f46e5, #7c3aed, #06b6d4);
-  --gradient-success: linear-gradient(135deg, #10b981, #059669);
-  --gradient-warning: linear-gradient(135deg, #f59e0b, #d97706);
-  --gradient-primary: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  /* === SOMBRAS === */
+  --shadow-piano: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+  --shadow-piano-selected: drop-shadow(0 0 6px rgba(16, 185, 129, 0.8));
+  --shadow-card: 0 10px 25px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 20px rgba(16, 185, 129, 0.3);
   
-  /* === SOMBRAS INTELIGENTES === */
-  --shadow-piano-subtle: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.08));
-  --shadow-piano-hover: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.15));
-  --shadow-piano-first: drop-shadow(0 0 4px rgba(16, 185, 129, 0.6));
-  --shadow-piano-selected: drop-shadow(0 0 3px rgba(79, 70, 229, 0.4));
-  --shadow-intelligent: 0 10px 25px rgba(79, 70, 229, 0.15);
-  --shadow-success: 0 10px 25px rgba(16, 185, 129, 0.15);
-  
-  /* === DIMENSIONES === */
-  --piano-height: 8rem;
-  --piano-border-radius: 0.5rem;
-  --panel-border-radius: 12px;
-  
-  /* === ANIMACIONES === */
-  --transition-fast: 0.12s ease;
+  /* === TRANSICIONES === */
+  --transition-fast: 0.15s ease;
   --transition-medium: 0.3s ease;
   --transition-slow: 0.5s ease;
 }
@@ -74,9 +54,9 @@ body {
   padding: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 
                'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-  background: linear-gradient(-45deg, #0f172a, #4c1d95, #1e293b, #581c87);
+  background: linear-gradient(-45deg, #0f172a, #064e3b, #1e293b, #065f46);
   background-size: 400% 400%;
-  animation: gradientShift 15s ease infinite;
+  animation: gradientShift 25s ease infinite;
   color: white;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -89,7 +69,7 @@ body {
   100% { background-position: 0% 50%; }
 }
 
-/* Scrollbar inteligente */
+/* Scrollbar personalizado */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -101,268 +81,178 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--gradient-intelligent);
+  background: var(--gradient-emerald);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--intelligent-primary);
+  background: var(--primary-emerald);
 }
 
 /* ======================================================================================== */
-/* ESTILOS DEL PIANO INTELIGENTE */
+/* ESTILOS DEL PIANO */
 /* ======================================================================================== */
 
 .piano-svg {
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
   transition: filter var(--transition-medium);
   outline: none;
   border: none;
 }
 
 .piano-svg:hover {
-  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.4));
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
 }
 
-/* === TECLAS BASE CON SISTEMA INTELIGENTE === */
+/* === TECLAS BASE === */
 .piano-key {
   transition: all var(--transition-fast);
   cursor: pointer;
   stroke-width: var(--piano-stroke-width);
-  filter: var(--shadow-piano-subtle);
+  filter: var(--shadow-piano);
 }
 
 /* === ESTADOS PARA TECLAS BLANCAS === */
 .piano-key.white-key {
   fill: var(--piano-white-key);
-  stroke: var(--piano-stroke-white);
+  stroke: var(--piano-stroke-default);
 }
 
 .piano-key.white-key:hover {
-  fill: var(--piano-white-key-pressed);
-  stroke: var(--piano-stroke-white-hover);
-  filter: var(--shadow-piano-hover) brightness(1.02);
-  transform: translateY(0.3px);
+  fill: var(--piano-white-key-hover);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.15)) brightness(1.02);
+  transform: translateY(0.2px);
 }
 
 .piano-key.white-key.selected {
   fill: var(--piano-white-key-selected);
-  stroke: var(--piano-stroke-white-selected);
+  stroke: var(--piano-stroke-selected-white);
   filter: var(--shadow-piano-selected);
-}
-
-.piano-key.white-key.first-selected {
-  fill: var(--piano-white-key-first);
-  stroke: var(--piano-stroke-white-first);
-  filter: var(--shadow-piano-first);
-  animation: gentle-pulse 2s ease-in-out infinite;
+  animation: gentle-glow 3s ease-in-out infinite;
 }
 
 .piano-key.white-key:active {
-  transform: translateY(1.5px);
+  transform: translateY(1px);
   transition: all 0.05s ease;
 }
 
 /* === ESTADOS PARA TECLAS NEGRAS === */
 .piano-key.black-key {
   fill: var(--piano-black-key);
-  stroke: var(--piano-stroke-black);
+  stroke: var(--piano-stroke-default);
 }
 
 .piano-key.black-key:hover {
-  fill: var(--piano-black-key-pressed);
-  stroke: var(--piano-stroke-black-hover);
-  filter: var(--shadow-piano-hover) brightness(1.1);
-  transform: translateY(0.3px);
+  fill: var(--piano-black-key-hover);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.15)) brightness(1.15);
+  transform: translateY(0.2px);
 }
 
 .piano-key.black-key.selected {
   fill: var(--piano-black-key-selected);
-  stroke: var(--piano-stroke-black-selected);
+  stroke: var(--piano-stroke-selected-black);
   filter: var(--shadow-piano-selected);
-}
-
-.piano-key.black-key.first-selected {
-  fill: var(--piano-black-key-first);
-  stroke: var(--piano-stroke-black-first);
-  filter: var(--shadow-piano-first);
-  animation: gentle-pulse 2s ease-in-out infinite;
+  animation: gentle-glow 3s ease-in-out infinite;
 }
 
 .piano-key.black-key:active {
-  transform: translateY(1.5px);
+  transform: translateY(1px);
   transition: all 0.05s ease;
 }
 
-/* === ANIMACIONES INTELIGENTES === */
-@keyframes gentle-pulse {
+/* === ANIMACIONES === */
+@keyframes gentle-glow {
   0%, 100% { 
-    filter: var(--shadow-piano-first);
+    filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.8));
     opacity: 1;
   }
   50% { 
-    filter: var(--shadow-piano-first) brightness(1.15);
-    opacity: 0.9;
+    filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.9)) brightness(1.1);
+    opacity: 0.95;
   }
 }
 
-@keyframes intelligent-glow {
-  0%, 100% { box-shadow: var(--shadow-intelligent); }
-  50% { box-shadow: 0 15px 35px rgba(79, 70, 229, 0.25); }
-}
-
-@keyframes success-glow {
-  0%, 100% { box-shadow: var(--shadow-success); }
-  50% { box-shadow: 0 15px 35px rgba(16, 185, 129, 0.25); }
-}
-
 /* ======================================================================================== */
-/* PANELES DEL SISTEMA INTELIGENTE */
+/* COMPONENTES DE LA INTERFAZ */
 /* ======================================================================================== */
 
-/* === PANELES PRINCIPALES === */
-.intelligent-panel {
-  background: rgba(0, 0, 0, 0.4);
+/* === CONTENEDORES PRINCIPALES === */
+.surface-card {
+  background: var(--gradient-surface);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--panel-border-radius);
+  border-radius: 1rem;
   transition: all var(--transition-medium);
 }
 
-.intelligent-panel:hover {
+.surface-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(79, 70, 229, 0.3);
-  box-shadow: var(--shadow-intelligent);
+  box-shadow: var(--shadow-card);
+  border-color: rgba(16, 185, 129, 0.3);
 }
 
-/* === PANEL DE ACORDE === */
-.chord-panel {
-  border-left: 4px solid var(--intelligent-primary);
+/* === FORMULARIOS Y SELECTORES === */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 40px;
 }
 
-.chord-panel.exact-match {
-  border-left-color: var(--intelligent-success);
-  animation: success-glow 3s ease-in-out infinite;
+select:focus {
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  outline: none;
 }
 
-/* === PANEL DE ESCALA === */
-.scale-panel {
-  border-left: 4px solid var(--intelligent-secondary);
-}
-
-.scale-panel.exact-match {
-  border-left-color: var(--intelligent-success);
-  animation: success-glow 3s ease-in-out infinite;
-}
-
-/* === PANEL DE INFORMACIÓN INTELIGENTE === */
-.intelligent-info-panel {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--panel-border-radius);
-  animation: fade-in 0.5s ease-out;
-}
-
-/* === BADGES Y ETIQUETAS INTELIGENTES === */
-.badge-exact {
-  background: var(--gradient-success);
+/* === BOTONES === */
+.btn-primary {
+  background: var(--gradient-emerald);
+  border: 1px solid rgba(16, 185, 129, 0.5);
   color: white;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  animation: gentle-pulse 2s ease-in-out infinite;
-}
-
-.badge-confidence {
-  background: var(--gradient-primary);
-  color: white;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.badge-popularity {
-  background: var(--gradient-warning);
-  color: white;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-/* === INFORMACIÓN DE DEBUGGING === */
-.debug-info {
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  border-radius: 8px;
-  padding: 1rem;
-  font-family: 'Fira Code', 'Consolas', monospace;
-  font-size: 0.875rem;
-}
-
-.debug-info .debug-label {
-  color: var(--intelligent-success);
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  display: block;
-}
-
-.debug-info .debug-value {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-/* ======================================================================================== */
-/* BOTONES INTELIGENTES */
-/* ======================================================================================== */
-
-.intelligent-button {
-  background: var(--gradient-intelligent);
-  border: 1px solid rgba(79, 70, 229, 0.5);
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
+  padding: 0.75rem 2rem;
+  border-radius: 0.5rem;
   font-weight: 500;
   transition: all var(--transition-medium);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  text-decoration: none;
 }
 
-.intelligent-button:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-intelligent);
-  border-color: rgba(79, 70, 229, 0.8);
+.btn-primary:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: var(--shadow-glow);
+  border-color: rgba(16, 185, 129, 0.8);
 }
 
-.intelligent-button:active {
-  transform: translateY(0);
+.btn-primary:active {
+  transform: translateY(0) scale(1);
 }
 
-.clear-button {
-  background: var(--gradient-warning);
+.btn-secondary {
+  background: rgba(239, 68, 68, 0.8);
   border: 1px solid rgba(239, 68, 68, 0.5);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all var(--transition-medium);
+  cursor: pointer;
 }
 
-.clear-button:hover {
-  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.8);
+.btn-secondary:hover {
+  background: rgba(239, 68, 68, 1);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3);
 }
 
-/* ======================================================================================== */
-/* GRADIENTES Y EFECTOS DE TEXTO */
-/* ======================================================================================== */
-
-.gradient-text {
-  background: var(--gradient-intelligent);
+/* === GRADIENTES DE TEXTO === */
+.gradient-text-emerald {
+  background: var(--gradient-emerald);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -375,90 +265,101 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
-.gradient-text-warning {
-  background: var(--gradient-warning);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.text-shadow {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-/* ======================================================================================== */
-/* ESTADOS DE DETECCIÓN INTELIGENTE */
-/* ======================================================================================== */
-
-.detection-container {
-  position: relative;
-  overflow: hidden;
-}
-
-.detection-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(79, 70, 229, 0.1), 
-    transparent
-  );
-  transition: left 0.6s ease;
-}
-
-.detection-container.has-detection::before {
-  left: 100%;
-}
-
-.detection-exact {
-  border-color: var(--intelligent-success);
-  background: rgba(16, 185, 129, 0.05);
-}
-
-.detection-partial {
-  border-color: var(--intelligent-warning);
-  background: rgba(245, 158, 11, 0.05);
-}
-
-.detection-none {
-  border-color: rgba(107, 114, 128, 0.3);
-  background: rgba(107, 114, 128, 0.05);
-}
-
-/* ======================================================================================== */
-/* INFORMACIÓN CONTEXTUAL DE TÓNICA */
-/* ======================================================================================== */
-
-.tonic-indicator {
+/* === BADGES Y ETIQUETAS === */
+.badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  border-radius: 6px;
+  gap: 0.25rem;
   padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-  color: var(--intelligent-success);
-  animation: fade-in 0.3s ease-out;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid;
 }
 
-.tonic-note {
-  font-weight: 700;
-  font-size: 0.875rem;
+.badge-pattern {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.badge-count {
+  background: rgba(6, 182, 212, 0.2);
+  color: #06b6d4;
+  border-color: rgba(6, 182, 212, 0.3);
+}
+
+/* === PANELES DE INFORMACIÓN === */
+.info-panel {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  transition: all var(--transition-medium);
+}
+
+.info-panel:hover {
+  transform: translateY(-1px);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.info-panel.emerald {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.info-panel.cyan {
+  border-color: rgba(6, 182, 212, 0.3);
+  background: rgba(6, 182, 212, 0.1);
+}
+
+.info-panel.slate {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: rgba(100, 116, 139, 0.1);
+}
+
+/* === INDICADORES DE ESTADO === */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+
+.status-emerald { background-color: var(--primary-emerald); }
+.status-cyan { background-color: var(--primary-cyan); }
+.status-success { background-color: var(--success-green); }
+.status-purple { background-color: #8b5cf6; }
+
+/* === SELECTORS PERSONALIZADOS === */
+.control-panel {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  transition: all var(--transition-medium);
+}
+
+.control-panel:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: var(--shadow-glow);
 }
 
 /* ======================================================================================== */
 /* ANIMACIONES AVANZADAS */
 /* ======================================================================================== */
 
-@keyframes fade-in {
+@keyframes fadeIn {
   from { 
     opacity: 0; 
-    transform: translateY(10px); 
+    transform: translateY(15px); 
   }
   to { 
     opacity: 1; 
@@ -466,18 +367,7 @@ body {
   }
 }
 
-@keyframes slide-in-right {
-  from { 
-    opacity: 0; 
-    transform: translateX(20px); 
-  }
-  to { 
-    opacity: 1; 
-    transform: translateX(0); 
-  }
-}
-
-@keyframes scale-in {
+@keyframes scaleIn {
   from { 
     opacity: 0; 
     transform: scale(0.9); 
@@ -488,53 +378,87 @@ body {
   }
 }
 
-.fade-in { animation: fade-in 0.5s ease-out; }
-.slide-in-right { animation: slide-in-right 0.4s ease-out; }
-.scale-in { animation: scale-in 0.3s ease-out; }
+@keyframes slideIn {
+  from { 
+    opacity: 0; 
+    transform: translateX(-20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    box-shadow: 0 0 5px rgba(16, 185, 129, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+  }
+}
+
+.fade-in { animation: fadeIn 0.5s ease-out; }
+.scale-in { animation: scaleIn 0.4s ease-out; }
+.slide-in { animation: slideIn 0.4s ease-out; }
+.pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
 
 /* ======================================================================================== */
-/* RESPONSIVE DESIGN INTELIGENTE */
+/* RESPONSIVE DESIGN */
 /* ======================================================================================== */
 
 @media (max-width: 768px) {
   :root {
-    --piano-stroke-width: 0.05;
-    --panel-border-radius: 8px;
+    --piano-stroke-width: 0.08;
   }
   
   .piano-svg {
-    height: 6rem;
+    height: 140px;
   }
   
-  .intelligent-panel {
+  .control-panel {
     padding: 1rem;
   }
   
-  .piano-key {
-    stroke-width: 0.05;
+  .info-panel {
+    padding: 1rem;
   }
   
-  .badge-exact,
-  .badge-confidence,
-  .badge-popularity {
-    font-size: 0.75rem;
-    padding: 0.125rem 0.5rem;
+  .btn-primary {
+    padding: 0.625rem 1.5rem;
+    font-size: 0.875rem;
+  }
+  
+  select {
+    padding: 0.625rem 2.5rem 0.625rem 0.75rem;
+    font-size: 0.875rem;
   }
 }
 
 @media (max-width: 480px) {
   :root {
-    --piano-stroke-width: 0.03;
+    --piano-stroke-width: 0.06;
   }
   
-  .debug-info {
-    font-size: 0.75rem;
+  .piano-svg {
+    height: 120px;
+  }
+  
+  .control-panel {
     padding: 0.75rem;
+  }
+  
+  h1 {
+    font-size: 3rem !important;
+  }
+  
+  h2 {
+    font-size: 1.5rem !important;
   }
 }
 
 /* ======================================================================================== */
-/* ACCESIBILIDAD INTELIGENTE */
+/* ACCESIBILIDAD */
 /* ======================================================================================== */
 
 @media (prefers-reduced-motion: reduce) {
@@ -548,108 +472,122 @@ body {
     transition: none;
   }
   
-  .gentle-pulse,
-  .intelligent-glow,
-  .success-glow {
+  .gentle-glow, .pulse-glow {
     animation: none;
   }
 }
 
 .piano-key:focus {
-  outline: 2px solid var(--intelligent-primary);
+  outline: 2px solid var(--primary-emerald);
+  outline-offset: 2px;
+}
+
+select:focus {
+  outline: 2px solid var(--primary-emerald);
+  outline-offset: 2px;
+}
+
+button:focus {
+  outline: 2px solid var(--primary-emerald);
   outline-offset: 2px;
 }
 
 @media (prefers-contrast: high) {
   :root {
-    --piano-stroke-width: 0.15;
-    --piano-stroke-white: rgba(200, 200, 200, 0.4);
-    --piano-stroke-black: rgba(100, 100, 100, 0.5);
+    --piano-stroke-width: 0.2;
+    --piano-stroke-default: rgba(200, 200, 200, 0.8);
+    --piano-stroke-selected-white: rgba(16, 185, 129, 0.8);
+    --piano-stroke-selected-black: rgba(5, 150, 105, 0.8);
   }
 }
 
 /* ======================================================================================== */
-/* UTILIDADES ESPECIALES PARA SISTEMA INTELIGENTE */
+/* UTILIDADES ESPECIALES */
 /* ======================================================================================== */
 
-.intelligent-grid {
+.grid-explorer {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 }
 
-.intelligent-stats {
+.grid-controls {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.flex-between {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem;
-  background: rgba(79, 70, 229, 0.1);
-  border: 1px solid rgba(79, 70, 229, 0.2);
-  border-radius: 8px;
-  font-size: 0.875rem;
 }
 
-.filter-indicator {
-  display: inline-flex;
+.flex-center {
+  display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.7);
 }
 
-.specificity-bar {
-  width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
+.text-shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.border-glow {
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
+/* === LAYOUT ESPECÍFICO PARA EXPLORADOR === */
+.explorer-layout {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.pattern-display {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(6, 182, 212, 0.1));
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  position: relative;
   overflow: hidden;
 }
 
-.specificity-fill {
-  height: 100%;
-  background: var(--gradient-intelligent);
-  border-radius: 2px;
-  transition: width var(--transition-medium);
-}
-
-/* ======================================================================================== */
-/* ESTADOS FINALES Y VERIFICACIONES */
-/* ======================================================================================== */
-
-/* Asegurar compatibilidad con el sistema inteligente */
-.intelligent-container {
-  position: relative;
-  z-index: 1;
-}
-
-.intelligent-overlay {
+.pattern-display::before {
+  content: '';
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(79, 70, 229, 0.05);
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity var(--transition-medium);
-  pointer-events: none;
-  z-index: -1;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.1), transparent);
+  animation: shimmer 3s ease-in-out infinite;
 }
 
-.intelligent-container:hover .intelligent-overlay {
-  opacity: 1;
+@keyframes shimmer {
+  0% { left: -100%; }
+  50% { left: 100%; }
+  100% { left: 100%; }
 }
 
-/* Verificación de carga del sistema */
-.system-loaded {
+/* ======================================================================================== */
+/* ESTADOS FINALES */
+/* ======================================================================================== */
+
+.app-loaded {
   opacity: 1;
   transform: scale(1);
 }
 
-.system-loading {
-  opacity: 0.7;
-  transform: scale(0.98);
+.app-loading {
+  opacity: 0.9;
+  transform: scale(0.99);
   pointer-events: none;
+}
+
+body.explorer-ready {
+  background-attachment: fixed;
 }
 
 /* ======================================================================================== */
@@ -657,33 +595,30 @@ body {
 /* ======================================================================================== */
 
 /*
-✅ SISTEMA INTELIGENTE v3.5 COMPLETAMENTE IMPLEMENTADO:
+✅ PSANTER EXPLORER v5.0 - CSS IMPLEMENTADO:
 
 🎯 Características principales:
-- Contornos ultra-finos (0.08px) para definición sutil
-- Colores diferenciados para primera tecla (tónica contextual)
+- Tema verde esmeralda para el sistema de exploración
+- Selectors personalizados con focus states
 - Animaciones suaves para feedback visual
-- Paneles inteligentes con información contextual
-- Badges dinámicos para estados de detección
-- Responsive design optimizado
-- Accesibilidad mejorada
+- Layout responsive optimizado para controles
+- Accesibilidad mejorada para formularios
 
-🎨 Colores y efectos:
-- Verde para primera tecla (contexto de tónica)
-- Azul para teclas adicionales seleccionadas  
-- Gradientes inteligentes para paneles
-- Sombras sutiles para profundidad
-- Animaciones contextuales
+🎨 Paleta de colores:
+- Verde esmeralda para teclas seleccionadas
+- Cyan para información complementaria
+- Gradientes sutiles para paneles
+- Efectos de glow para estados activos
 
 🔧 Compatibilidad:
-- Móviles y tablets optimizados
-- Usuarios con preferencias reducidas de movimiento
+- Móviles y tablets con controles adaptables
+- Preferencias reducidas de movimiento
 - Alto contraste para accesibilidad
-- Múltiples resoluciones
+- Múltiples resoluciones optimizadas
 
-💡 Innovaciones:
-- Sistema de detección visual en tiempo real
-- Información contextual automática
-- Filtros anti-ruido visualizados
-- Estados inteligentes diferenciados
+💡 Optimizaciones específicas:
+- CSS Grid para layout de controles
+- Animaciones contextuales para feedback
+- Variables CSS para mantenimiento
+- Estados hover/focus mejorados para UX
 */
