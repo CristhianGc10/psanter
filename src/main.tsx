@@ -1,7 +1,11 @@
+// src/main.tsx - Versión Final Limpia
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+
+// Importar funciones de verificación (solo para consola)
+import './utils/consoleVerification';
 
 // Verificar que tenemos un elemento root
 const rootElement = document.getElementById('root');
