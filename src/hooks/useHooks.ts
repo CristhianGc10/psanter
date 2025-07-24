@@ -2,7 +2,7 @@
 /**
  * HOOK MAESTRO DE INTEGRACIÓN - Coordina todos los hooks de la Fase 5
  * Integra audio + keyboard + piano + metronome + detection de forma optimizada
- * Fase 5: Hooks Personalizados - Coordinación Completa
+ * Fase 5: Hooks Personalizados - Coordinación Completa - VERSIÓN CORREGIDA
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
@@ -40,6 +40,7 @@ interface SystemControls {
   disableAll: () => void;
   runHealthCheck: () => Promise<SystemState['systemHealth']>;
   getSystemStats: () => Record<string, any>;
+  ensureAudioContext: () => Promise<boolean>;
 }
 
 interface HookInstances {
@@ -72,10 +73,12 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
     }
   });
 
-  // ========== REFS PARA COORDINACIÓN ==========
+  // ========== REFS CRÍTICOS ==========
+  const isMountedRef = useRef<boolean>(true);
   const initializationStartRef = useRef<number>(0);
   const healthCheckIntervalRef = useRef<number | null>(null);
   const isInitializingRef = useRef<boolean>(false);
+  const isShuttingDownRef = useRef<boolean>(false);
 
   // ========== INSTANCIAS DE HOOKS ==========
   
@@ -85,77 +88,91 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
   // 2. Audio System
   const audio = useAudio();
   
-  // 3. Keyboard System con callbacks coordinados
+  // 3. Keyboard System
   const keyboard = useKeyboard(
-    // onKeyboardNote - coordinado con piano
-    useCallback((note: NoteName, velocity: number, pressed: boolean) => {
-      console.log(`🎹 Keyboard event: ${note} ${pressed ? 'ON' : 'OFF'} (vel: ${velocity.toFixed(2)})`);
-    }, []),
-    
-    // onSustainChange - coordinado con piano
-    useCallback((active: boolean) => {
-      console.log(`🎼 Keyboard sustain: ${active ? 'ON' : 'OFF'}`);
-    }, []),
-    
-    // onOctaveChange - coordinado con piano
-    useCallback((octave: number) => {
-      console.log(`🎵 Keyboard octave: ${octave}`);
-    }, [])
+    // onKeyboardNote
+    (note: NoteName, velocity: number, pressed: boolean) => {
+      if (piano.isReady && !isShuttingDownRef.current) {
+        if (pressed) {
+          piano.playNote(note, velocity, 'keyboard');
+        } else {
+          piano.stopNote(note, 'keyboard');
+        }
+      }
+    },
+    // onSustainChange
+    (active: boolean) => {
+      if (piano.isReady && !isShuttingDownRef.current) {
+        piano.setSustain(active);
+      }
+    },
+    // onOctaveChange
+    (octave: number) => {
+      if (!isShuttingDownRef.current) {
+        console.log(`🎹 Octave changed: ${octave}`);
+      }
+    }
   );
-
-  // 4. Piano System (maestro) con eventos coordinados
+  
+  // 4. Piano System (maestro)
   const piano = usePiano({
-    onNoteOn: useCallback((note: NoteName, velocity: number, source: string) => {
-      // Trigger detection automático si está habilitado
-      console.log(`🎹 Note ON: ${note} (${source}, vel: ${velocity.toFixed(2)})`);
-    }, []),
-    
-    onNoteOff: useCallback((note: NoteName, source: string) => {
-      console.log(`🎹 Note OFF: ${note} (${source})`);
-    }, []),
-    
-    onSustainChange: useCallback((active: boolean) => {
-      console.log(`🎼 Piano sustain: ${active ? 'ACTIVE' : 'INACTIVE'}`);
-    }, []),
-    
-    onVolumeChange: useCallback((volume: number) => {
-      console.log(`🔊 Master volume: ${(volume * 100).toFixed(0)}%`);
-    }, []),
-    
-    onOctaveChange: useCallback((octave: number) => {
-      console.log(`🎵 Piano octave: ${octave}`);
-    }, [])
+    onNoteOn: (note: NoteName, velocity: number, source: string) => {
+      if (!isShuttingDownRef.current) {
+        console.log(`🎹 Note ON: ${note} (vel: ${velocity.toFixed(2)}, src: ${source})`);
+      }
+    },
+    onNoteOff: (note: NoteName, source: string) => {
+      if (!isShuttingDownRef.current) {
+        console.log(`🎹 Note OFF: ${note} (src: ${source})`);
+      }
+    },
+    onSustainChange: (active: boolean) => {
+      if (!isShuttingDownRef.current) {
+        console.log(`🎹 Sustain: ${active ? 'ON' : 'OFF'}`);
+      }
+    }
   });
-
-  // 5. Metronome System con eventos
-  const metronome = useMetronome({
-    onBeat: useCallback((beat: number, isAccent: boolean, bpm: number) => {
-      console.log(`🥁 Beat ${beat} ${isAccent ? '(ACCENT)' : ''} @ ${bpm} BPM`);
-    }, []),
-    
-    onMeasure: useCallback((measure: number) => {
-      console.log(`🥁 Measure ${measure}`);
-    }, []),
-    
-    onStart: useCallback(() => {
-      console.log('🥁 Metronome started');
-    }, []),
-    
-    onStop: useCallback(() => {
-      console.log('🥁 Metronome stopped');
-    }, [])
-  });
-
+  
+  // 5. Metronome System
+  const metronome = useMetronome();
+  
   // 6. Detection System
   const detection = useDetection();
 
   // ========================================================================================
-  // FUNCIONES DE COORDINACIÓN
+  // HELPER FUNCTIONS
+  // ========================================================================================
+
+  const updateSystemState = useCallback((updates: Partial<SystemState>) => {
+    if (isMountedRef.current) {
+      setSystemState(prev => ({ ...prev, ...updates }));
+    }
+  }, []);
+
+  const ensureAudioContext = useCallback(async (): Promise<boolean> => {
+    if (!audio.hasUserInteraction) {
+      console.log('🎵 Activating AudioContext after user interaction...');
+      const success = await audio.startAudioContext();
+      
+      if (success) {
+        updateSystemState({ hasAudioPermissions: true });
+        console.log('✅ AudioContext activated successfully');
+        return true;
+      } else {
+        console.warn('⚠️ Failed to activate AudioContext');
+        return false;
+      }
+    }
+    
+    return true; // Ya estaba activado
+  }, [audio, updateSystemState]);
+
+  // ========================================================================================
+  // CONTROL DEL SISTEMA
   // ========================================================================================
 
   const initialize = useCallback(async (): Promise<boolean> => {
-    if (isInitializingRef.current) {
-      console.log('⚠️ Initialization already in progress');
+    if (isInitializingRef.current || isShuttingDownRef.current) {
       return false;
     }
 
@@ -163,302 +180,322 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
       isInitializingRef.current = true;
       initializationStartRef.current = performance.now();
       
-      console.log('🚀 Starting system initialization...');
+      console.log('🚀 Initializing system...');
+      updateSystemState({ lastError: null });
+
+      // 1. Inicializar audio primero
+      console.log('🔊 Initializing audio components...');
+      const audioSuccess = await audio.initializeAudio?.() || audio.isInitialized;
       
-      setSystemState(prev => ({
-        ...prev,
-        lastError: null
-      }));
-
-      // === FASE 1: VERIFICAR STORES ===
-      console.log('📦 Phase 1: Checking stores...');
-      if (!stores.isReady) {
-        throw new Error('Stores are not ready');
-      }
-
-      // === FASE 2: INICIALIZAR AUDIO ===
-      console.log('🎵 Phase 2: Initializing audio...');
-      const audioSuccess = await audio.initializeAudio();
       if (!audioSuccess) {
-        throw new Error('Audio initialization failed');
+        throw new Error('Audio component initialization failed');
       }
 
-      // Verificar permisos de audio
-      const hasPermissions = await audio.startAudioContext();
-      setSystemState(prev => ({ ...prev, hasAudioPermissions: hasPermissions }));
+      // NOTE: NO verificar permisos automáticamente - eso requiere user gesture
+      console.log('ℹ️ Audio context will start on first user interaction');
 
       // === FASE 3: INICIALIZAR PIANO (MAESTRO) ===
-      console.log('🎹 Phase 3: Initializing piano system...');
-      const pianoSuccess = await piano.initialize();
+      console.log('🎹 Initializing piano...');
+      const pianoSuccess = await piano.initialize?.() || piano.isReady;
+      
       if (!pianoSuccess) {
         throw new Error('Piano initialization failed');
       }
 
-      // === FASE 4: INICIALIZAR METRÓNOMO ===
-      console.log('🥁 Phase 4: Initializing metronome...');
-      const metronomeSuccess = await metronome.initialize();
-      if (!metronomeSuccess) {
-        console.warn('⚠️ Metronome initialization failed, continuing...');
-      }
-
-      // === FASE 5: HABILITAR DETECCIÓN ===
-      console.log('🎯 Phase 5: Enabling detection...');
+      // 3. Habilitar sistemas auxiliares
+      console.log('⌨️ Enabling keyboard...');
+      keyboard.enable();
+      
+      console.log('🥁 Enabling metronome...');
+      // Metronome doesn't need explicit enabling
+      
+      console.log('🎯 Enabling detection...');
       detection.enable();
 
-      // === FASE 6: HEALTH CHECK INICIAL ===
-      console.log('🏥 Phase 6: Running health check...');
-      const health = await runHealthCheck();
-      
-      // === FINALIZACIÓN ===
+      // 4. Calcular tiempo de inicialización
       const totalTime = performance.now() - initializationStartRef.current;
       
-      setSystemState(prev => ({
-        ...prev,
-        isReady: true,
+      updateSystemState({
         isInitialized: true,
+        isReady: true,
+        hasAudioPermissions: false, // Se activará con la primera interacción
         totalInitializationTime: totalTime,
-        systemHealth: health
-      }));
+        systemHealth: {
+          audio: audio.isInitialized ? 'healthy' : 'failed',
+          keyboard: keyboard.isActive ? 'healthy' : 'failed',
+          detection: detection.isEnabled ? 'healthy' : 'failed',
+          metronome: metronome.isInitialized ? 'healthy' : 'failed'
+        }
+      });
 
-      // Configurar health check periódico
-      if (healthCheckIntervalRef.current) {
-        clearInterval(healthCheckIntervalRef.current);
-      }
-      healthCheckIntervalRef.current = window.setInterval(async () => {
-        const newHealth = await runHealthCheck();
-        setSystemState(prev => ({ ...prev, systemHealth: newHealth }));
-      }, 10000); // Cada 10 segundos
-
-      console.log(`✅ System initialization completed in ${totalTime.toFixed(1)}ms`);
-      console.log('🎹 Piano Virtual System Ready!');
-      
+      console.log(`✅ System initialized successfully in ${totalTime.toFixed(1)}ms`);
       return true;
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
       console.error('❌ System initialization failed:', errorMessage);
       
-      setSystemState(prev => ({
-        ...prev,
-        isReady: false,
+      updateSystemState({
+        lastError: errorMessage,
         isInitialized: false,
-        lastError: errorMessage
-      }));
-
-      return false;
+        isReady: false
+      });
       
+      return false;
     } finally {
       isInitializingRef.current = false;
     }
-  }, [stores.isReady, audio, piano, metronome, detection]);
+  }, [audio, piano, keyboard, metronome, detection, updateSystemState]);
 
   const restart = useCallback(async (): Promise<boolean> => {
     console.log('🔄 Restarting system...');
-    
-    // Shutdown primero
     shutdown();
     
-    // Esperar un momento para cleanup
+    // Esperar un poco para que el shutdown complete
     await new Promise(resolve => setTimeout(resolve, 100));
     
-    // Re-inicializar
     return await initialize();
   }, [initialize]);
 
   const shutdown = useCallback((): void => {
-    console.log('🛑 Shutting down system...');
-    
-    // Detener health check
-    if (healthCheckIntervalRef.current) {
-      clearInterval(healthCheckIntervalRef.current);
-      healthCheckIntervalRef.current = null;
+    if (isShuttingDownRef.current) {
+      return;
     }
 
-    // Shutdown en orden inverso
     try {
-      detection.disable();
-      metronome.stop();
-      piano.disable();
-      keyboard.disable();
-      audio.cleanup();
+      isShuttingDownRef.current = true;
+      console.log('🛑 Shutting down system...');
+
+      // Limpiar health check interval
+      if (healthCheckIntervalRef.current) {
+        clearInterval(healthCheckIntervalRef.current);
+        healthCheckIntervalRef.current = null;
+      }
+
+      // 1. Parar todo inmediatamente
+      try {
+        console.log('⌨️ Shutting down keyboard...');
+        keyboard.disable?.();
+      } catch (error) {
+        console.warn('⚠️ Error during keyboard shutdown:', error);
+      }
+
+      try {
+        console.log('🎯 Shutting down detection...');
+        detection.disable?.();
+      } catch (error) {
+        console.warn('⚠️ Error during detection shutdown:', error);
+      }
+
+      try {
+        console.log('🥁 Shutting down metronome...');
+        metronome.stop?.();
+      } catch (error) {
+        console.warn('⚠️ Error during metronome shutdown:', error);
+      }
+
+      try {
+        console.log('🎹 Shutting down piano...');
+        piano.panic?.();
+      } catch (error) {
+        console.warn('⚠️ Error during piano shutdown:', error);
+      }
+
+      // 2. Cleanup en orden inverso (solo si están montados)
+      try {
+        if (isMountedRef.current) {
+          detection.cleanup?.();
+        }
+      } catch (error) {
+        console.warn('⚠️ Error during detection cleanup:', error);
+      }
+
+      try {
+        if (isMountedRef.current) {
+          keyboard.cleanup?.();
+        }
+      } catch (error) {
+        console.warn('⚠️ Error during keyboard cleanup:', error);
+      }
+
+      try {
+        if (isMountedRef.current) {
+          metronome.cleanup?.();
+        }
+      } catch (error) {
+        console.warn('⚠️ Error during metronome cleanup:', error);
+      }
+
+      try {
+        if (isMountedRef.current) {
+          piano.cleanup?.();
+        }
+      } catch (error) {
+        console.warn('⚠️ Error during piano cleanup:', error);
+      }
+
+      try {
+        if (isMountedRef.current) {
+          audio.cleanup?.();
+        }
+      } catch (error) {
+        console.warn('⚠️ Error during audio cleanup:', error);
+      }
+
+      // 3. Actualizar estado final solo si está montado
+      if (isMountedRef.current) {
+        updateSystemState({
+          isReady: false,
+          isInitialized: false,
+          systemHealth: {
+            audio: 'failed',
+            keyboard: 'failed',
+            detection: 'failed',
+            metronome: 'failed'
+          }
+        });
+      }
+
+      console.log('✅ System shutdown completed');
+
     } catch (error) {
       console.error('❌ Error during shutdown:', error);
+    } finally {
+      isShuttingDownRef.current = false;
     }
-
-    // Reset estado
-    setSystemState({
-      isReady: false,
-      isInitialized: false,
-      hasAudioPermissions: false,
-      totalInitializationTime: 0,
-      lastError: null,
-      systemHealth: {
-        audio: 'failed',
-        keyboard: 'failed',
-        detection: 'failed',
-        metronome: 'failed'
-      }
-    });
-
-    console.log('🛑 System shutdown completed');
-  }, [detection, metronome, piano, keyboard, audio]);
+  }, [audio, piano, keyboard, metronome, detection, updateSystemState]);
 
   const enableAll = useCallback((): void => {
-    console.log('✅ Enabling all systems...');
+    if (isShuttingDownRef.current) return;
     
-    try {
-      piano.enable();
-      keyboard.enable();
-      detection.enable();
-      // No habilitar metrónomo automáticamente
-      
-      console.log('✅ All systems enabled');
-    } catch (error) {
-      console.error('❌ Error enabling systems:', error);
-    }
-  }, [piano, keyboard, detection]);
+    console.log('🔛 Enabling all systems...');
+    keyboard.enable();
+    detection.enable();
+    console.log('✅ All systems enabled');
+  }, [keyboard, detection]);
 
   const disableAll = useCallback((): void => {
-    console.log('⏸️ Disabling all systems...');
+    if (isShuttingDownRef.current) return;
     
-    try {
-      detection.disable();
-      metronome.stop();
-      piano.disable();
-      keyboard.disable();
-      
-      console.log('⏸️ All systems disabled');
-    } catch (error) {
-      console.error('❌ Error disabling systems:', error);
-    }
-  }, [detection, metronome, piano, keyboard]);
-
-  // ========================================================================================
-  // HEALTH CHECK SYSTEM
-  // ========================================================================================
+    console.log('🔴 Disabling all systems...');
+    keyboard.disable();
+    detection.disable();
+    metronome.stop?.();
+    console.log('✅ All systems disabled');
+  }, [keyboard, detection, metronome]);
 
   const runHealthCheck = useCallback(async (): Promise<SystemState['systemHealth']> => {
-    const health: SystemState['systemHealth'] = {
-      audio: 'failed',
-      keyboard: 'failed',
-      detection: 'failed',
-      metronome: 'failed'
+    const health = {
+      audio: audio.isInitialized ? 'healthy' as const : 'failed' as const,
+      keyboard: keyboard.isActive ? 'healthy' as const : 'failed' as const,
+      detection: detection.isEnabled ? 'healthy' as const : 'failed' as const,
+      metronome: metronome.isInitialized ? 'healthy' as const : 'failed' as const
     };
 
-    try {
-      // Audio Health
-      if (audio.isInitialized && audio.isContextStarted) {
-        health.audio = 'healthy';
-      } else if (audio.isInitialized) {
-        health.audio = 'degraded';
-      }
-
-      // Keyboard Health
-      if (keyboard.isActive) {
-        health.keyboard = 'healthy';
-      }
-
-      // Detection Health
-      if (detection.isEnabled && !detection.error) {
-        health.detection = 'healthy';
-      } else if (detection.isEnabled) {
-        health.detection = 'degraded';
-      }
-
-      // Metronome Health
-      if (metronome.isInitialized && !metronome.error) {
-        health.metronome = 'healthy';
-      } else if (metronome.isInitialized) {
-        health.metronome = 'degraded';
-      }
-
-    } catch (error) {
-      console.error('❌ Health check failed:', error);
-    }
-
+    updateSystemState({ systemHealth: health });
     return health;
-  }, [audio, keyboard, detection, metronome]);
+  }, [audio, keyboard, detection, metronome, updateSystemState]);
 
   const getSystemStats = useCallback((): Record<string, any> => {
     return {
-      system: {
+      initialization: {
         isReady: systemState.isReady,
         isInitialized: systemState.isInitialized,
         initTime: systemState.totalInitializationTime,
-        health: systemState.systemHealth
+        lastError: systemState.lastError
       },
       audio: {
-        isInitialized: audio.isInitialized,
-        hasContext: audio.isContextStarted,
-        hasPermissions: systemState.hasAudioPermissions,
+        initialized: audio.isInitialized,
+        contextStarted: audio.isContextStarted,
+        userInteraction: audio.hasUserInteraction,
         error: audio.error
       },
       piano: {
-        isReady: piano.isReady,
+        ready: piano.isReady,
         activeNotes: piano.totalActiveNotes,
-        sustain: piano.sustainActive,
-        volume: piano.masterVolume,
-        octave: piano.currentOctave
+        sustainActive: piano.sustainActive,
+        masterVolume: piano.masterVolume
       },
       keyboard: {
-        isActive: keyboard.isActive,
+        active: keyboard.isActive,
         pressedKeys: keyboard.pressedKeys.size,
         currentOctave: keyboard.currentOctave,
-        modifiers: keyboard.modifierKeys
+        sustain: keyboard.modifierKeys.sustain
       },
       metronome: {
+        initialized: metronome.isInitialized,
         isRunning: metronome.isRunning,
         bpm: metronome.bpm,
-        currentBeat: metronome.currentBeat,
-        totalBeats: metronome.totalBeats
+        volume: metronome.volume
       },
       detection: {
-        isEnabled: detection.isEnabled,
-        isAnalyzing: detection.isAnalyzing,
-        chords: detection.currentChords,
-        scales: detection.currentScales,
-        confidence: detection.confidence,
-        totalAnalyses: detection.totalAnalyses
+        enabled: detection.isEnabled,
+        analyzing: detection.isAnalyzing,
+        totalAnalyses: detection.totalAnalyses,
+        currentChords: detection.currentChords.length,
+        currentScales: detection.currentScales.length
       }
     };
   }, [systemState, audio, piano, keyboard, metronome, detection]);
 
   // ========================================================================================
-  // EFFECTS - AUTO-INICIALIZACIÓN
+  // EFFECTS Y LIFECYCLE
   // ========================================================================================
 
-  // Auto-inicialización cuando stores están listos
+  // Marcar como montado al inicializar
   useEffect(() => {
-    if (stores.isReady && !systemState.isInitialized && !isInitializingRef.current) {
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+      isShuttingDownRef.current = true;
+    };
+  }, []);
+
+  // Auto-inicialización cuando stores estén listos
+  useEffect(() => {
+    if (stores.isReady && !systemState.isInitialized && !isInitializingRef.current && !isShuttingDownRef.current) {
       console.log('🚀 Auto-initializing system...');
       initialize();
     }
   }, [stores.isReady, systemState.isInitialized, initialize]);
 
-  // Cleanup al desmontar
+  // Health check periódico
+  useEffect(() => {
+    if (systemState.isReady && !isShuttingDownRef.current) {
+      healthCheckIntervalRef.current = window.setInterval(() => {
+        if (!isShuttingDownRef.current) {
+          runHealthCheck();
+        }
+      }, 10000); // Cada 10 segundos
+
+      return () => {
+        if (healthCheckIntervalRef.current) {
+          clearInterval(healthCheckIntervalRef.current);
+          healthCheckIntervalRef.current = null;
+        }
+      };
+    }
+  }, [systemState.isReady, runHealthCheck]);
+
+  // Cleanup al desmontar SIN setState
   useEffect(() => {
     return () => {
-      shutdown();
+      isMountedRef.current = false;
+      isShuttingDownRef.current = true;
+      
+      if (healthCheckIntervalRef.current) {
+        clearInterval(healthCheckIntervalRef.current);
+        healthCheckIntervalRef.current = null;
+      }
+      
+      try { detection.cleanup?.(); } catch {}
+      try { keyboard.cleanup?.(); } catch {}
+      try { metronome.cleanup?.(); } catch {}
+      try { piano.cleanup?.(); } catch {}
+      try { audio.cleanup?.(); } catch {}
     };
-  }, [shutdown]);
-
-  // ========================================================================================
-  // LOGGING Y DEBUG
-  // ========================================================================================
-
-  // Log estado del sistema cada vez que cambia
-  useEffect(() => {
-    if (systemState.isReady) {
-      console.log('📊 System Status:', {
-        ready: systemState.isReady,
-        audio: audio.isInitialized,
-        piano: piano.isReady,
-        keyboard: keyboard.isActive,
-        metronome: metronome.isInitialized,
-        detection: detection.isEnabled
-      });
-    }
-  }, [systemState.isReady, audio.isInitialized, piano.isReady, keyboard.isActive, metronome.isInitialized, detection.isEnabled]);
+  }, []);
 
   // ========================================================================================
   // RETURN HOOK
@@ -481,6 +518,7 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
     disableAll,
     runHealthCheck,
     getSystemStats,
+    ensureAudioContext,
     
     // Instancias de Hooks
     hooks: {

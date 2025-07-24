@@ -36,10 +36,12 @@ function App() {
   
   const handleUserInteraction = async () => {
     if (!system.hasAudioPermissions) {
-      console.log('🎵 Starting audio context after user interaction...');
-      const success = await system.hooks.audio.startAudioContext();
+      console.log('🎵 Activating audio context after user interaction...');
+      const success = await system.ensureAudioContext();
       if (success) {
-        console.log('✅ Audio context started successfully');
+        console.log('✅ Audio context activated successfully');
+      } else {
+        console.warn('⚠️ Failed to activate audio context');
       }
     }
   };

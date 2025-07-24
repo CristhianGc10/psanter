@@ -64,86 +64,76 @@ interface ScaleDefinition {
   weight: number;
 }
 
+interface DetectedChord {
+  name: string;
+  confidence: number;
+  notes: NoteName[];
+  type: string;
+}
+
+interface DetectedScale {
+  name: string;
+  confidence: number;
+  notes: NoteName[];
+  type: string;
+}
+
 // ========================================================================================
 // DEFINICIONES MUSICALES
 // ========================================================================================
 
 const CHORD_DEFINITIONS: ChordDefinition[] = [
-  // Triadas mayores
-  { name: 'Major', pattern: [0, 4, 7], aliases: ['M', ''], weight: 1.0 },
-  { name: 'Minor', pattern: [0, 3, 7], aliases: ['m', 'min'], weight: 1.0 },
-  { name: 'Diminished', pattern: [0, 3, 6], aliases: ['dim', '°'], weight: 0.8 },
-  { name: 'Augmented', pattern: [0, 4, 8], aliases: ['aug', '+'], weight: 0.7 },
+  // Acordes mayores
+  { name: 'C', pattern: [0, 4, 7], aliases: ['C Major'], weight: 1.0 },
+  { name: 'D', pattern: [2, 6, 9], aliases: ['D Major'], weight: 1.0 },
+  { name: 'E', pattern: [4, 8, 11], aliases: ['E Major'], weight: 1.0 },
+  { name: 'F', pattern: [5, 9, 0], aliases: ['F Major'], weight: 1.0 },
+  { name: 'G', pattern: [7, 11, 2], aliases: ['G Major'], weight: 1.0 },
+  { name: 'A', pattern: [9, 1, 4], aliases: ['A Major'], weight: 1.0 },
+  { name: 'B', pattern: [11, 3, 6], aliases: ['B Major'], weight: 1.0 },
   
-  // Séptimas
-  { name: 'Major 7th', pattern: [0, 4, 7, 11], aliases: ['M7', 'maj7'], weight: 0.9 },
-  { name: 'Minor 7th', pattern: [0, 3, 7, 10], aliases: ['m7', 'min7'], weight: 0.9 },
-  { name: 'Dominant 7th', pattern: [0, 4, 7, 10], aliases: ['7', 'dom7'], weight: 0.9 },
-  { name: 'Minor-Major 7th', pattern: [0, 3, 7, 11], aliases: ['mM7', 'm(maj7)'], weight: 0.6 },
-  { name: 'Half-Diminished 7th', pattern: [0, 3, 6, 10], aliases: ['m7b5', 'ø7'], weight: 0.7 },
-  { name: 'Diminished 7th', pattern: [0, 3, 6, 9], aliases: ['dim7', '°7'], weight: 0.6 },
+  // Acordes menores
+  { name: 'Cm', pattern: [0, 3, 7], aliases: ['C minor'], weight: 1.0 },
+  { name: 'Dm', pattern: [2, 5, 9], aliases: ['D minor'], weight: 1.0 },
+  { name: 'Em', pattern: [4, 7, 11], aliases: ['E minor'], weight: 1.0 },
+  { name: 'Fm', pattern: [5, 8, 0], aliases: ['F minor'], weight: 1.0 },
+  { name: 'Gm', pattern: [7, 10, 2], aliases: ['G minor'], weight: 1.0 },
+  { name: 'Am', pattern: [9, 0, 4], aliases: ['A minor'], weight: 1.0 },
+  { name: 'Bm', pattern: [11, 2, 6], aliases: ['B minor'], weight: 1.0 },
   
-  // Extensiones
-  { name: 'Major 9th', pattern: [0, 4, 7, 11, 14], aliases: ['M9', 'maj9'], weight: 0.7 },
-  { name: 'Minor 9th', pattern: [0, 3, 7, 10, 14], aliases: ['m9', 'min9'], weight: 0.7 },
-  { name: 'Dominant 9th', pattern: [0, 4, 7, 10, 14], aliases: ['9'], weight: 0.7 },
-  
-  // Suspendidos
-  { name: 'Suspended 2nd', pattern: [0, 2, 7], aliases: ['sus2'], weight: 0.8 },
-  { name: 'Suspended 4th', pattern: [0, 5, 7], aliases: ['sus4'], weight: 0.8 },
-  { name: 'Suspended 7th', pattern: [0, 5, 7, 10], aliases: ['7sus4'], weight: 0.7 },
+  // Acordes séptima
+  { name: 'C7', pattern: [0, 4, 7, 10], aliases: ['C dominant 7'], weight: 0.9 },
+  { name: 'Cmaj7', pattern: [0, 4, 7, 11], aliases: ['C major 7'], weight: 0.9 },
+  { name: 'Cm7', pattern: [0, 3, 7, 10], aliases: ['C minor 7'], weight: 0.9 },
 ];
 
 const SCALE_DEFINITIONS: ScaleDefinition[] = [
   // Escalas mayores
-  { name: 'Major', pattern: [0, 2, 4, 5, 7, 9, 11], aliases: ['Ionian'], weight: 1.0 },
-  { name: 'Natural Minor', pattern: [0, 2, 3, 5, 7, 8, 10], aliases: ['Aeolian', 'Minor'], weight: 1.0 },
+  { name: 'C Major', pattern: [0, 2, 4, 5, 7, 9, 11], aliases: ['C Ionian'], weight: 1.0 },
+  { name: 'G Major', pattern: [7, 9, 11, 0, 2, 4, 6], aliases: ['G Ionian'], weight: 1.0 },
+  { name: 'D Major', pattern: [2, 4, 6, 7, 9, 11, 1], aliases: ['D Ionian'], weight: 1.0 },
+  { name: 'A Major', pattern: [9, 11, 1, 2, 4, 6, 8], aliases: ['A Ionian'], weight: 1.0 },
+  { name: 'E Major', pattern: [4, 6, 8, 9, 11, 1, 3], aliases: ['E Ionian'], weight: 1.0 },
+  { name: 'F Major', pattern: [5, 7, 9, 10, 0, 2, 4], aliases: ['F Ionian'], weight: 1.0 },
   
-  // Modos griegos
-  { name: 'Dorian', pattern: [0, 2, 3, 5, 7, 9, 10], aliases: [], weight: 0.8 },
-  { name: 'Phrygian', pattern: [0, 1, 3, 5, 7, 8, 10], aliases: [], weight: 0.7 },
-  { name: 'Lydian', pattern: [0, 2, 4, 6, 7, 9, 11], aliases: [], weight: 0.8 },
-  { name: 'Mixolydian', pattern: [0, 2, 4, 5, 7, 9, 10], aliases: [], weight: 0.8 },
-  { name: 'Locrian', pattern: [0, 1, 3, 5, 6, 8, 10], aliases: [], weight: 0.6 },
-  
-  // Escalas menores
-  { name: 'Harmonic Minor', pattern: [0, 2, 3, 5, 7, 8, 11], aliases: [], weight: 0.9 },
-  { name: 'Melodic Minor', pattern: [0, 2, 3, 5, 7, 9, 11], aliases: [], weight: 0.8 },
-  
-  // Pentatónicas
-  { name: 'Major Pentatonic', pattern: [0, 2, 4, 7, 9], aliases: [], weight: 0.9 },
-  { name: 'Minor Pentatonic', pattern: [0, 3, 5, 7, 10], aliases: [], weight: 0.9 },
-  
-  // Blues
-  { name: 'Blues', pattern: [0, 3, 5, 6, 7, 10], aliases: [], weight: 0.8 },
-  
-  // Cromática
-  { name: 'Chromatic', pattern: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], aliases: [], weight: 0.3 }
+  // Escalas menores naturales
+  { name: 'A minor', pattern: [9, 11, 0, 2, 4, 5, 7], aliases: ['A Aeolian'], weight: 1.0 },
+  { name: 'E minor', pattern: [4, 6, 7, 9, 11, 0, 2], aliases: ['E Aeolian'], weight: 1.0 },
+  { name: 'D minor', pattern: [2, 4, 5, 7, 9, 10, 0], aliases: ['D Aeolian'], weight: 1.0 },
+  { name: 'G minor', pattern: [7, 9, 10, 0, 2, 3, 5], aliases: ['G Aeolian'], weight: 1.0 },
+  { name: 'C minor', pattern: [0, 2, 3, 5, 7, 8, 10], aliases: ['C Aeolian'], weight: 1.0 },
+  { name: 'F minor', pattern: [5, 7, 8, 10, 0, 1, 3], aliases: ['F Aeolian'], weight: 1.0 },
 ];
-
-// ========================================================================================
-// CONFIGURACIÓN DEFAULT
-// ========================================================================================
-
-const DEFAULT_CONFIG: DetectionConfig = {
-  debounceTime: 300,
-  sensitivity: 0.7,
-  minNotesForChord: 3,
-  minNotesForScale: 4,
-  maxAnalysisTime: 100,
-  enableChordDetection: true,
-  enableScaleDetection: true
-};
 
 // ========================================================================================
 // HOOK PRINCIPAL useDetection
 // ========================================================================================
 
 export const useDetection = (): DetectionState & DetectionControls => {
-  
+
   // ========== ESTADO LOCAL ==========
   const [detectionState, setDetectionState] = useState<DetectionState>({
-    isEnabled: true,
+    isEnabled: false,
     isAnalyzing: false,
     currentChords: [],
     currentScales: [],
@@ -153,183 +143,148 @@ export const useDetection = (): DetectionState & DetectionControls => {
     error: null
   });
 
-  // ========== REFS PARA OPTIMIZACIÓN ==========
-  const configRef = useRef<DetectionConfig>(DEFAULT_CONFIG);
+  // ========== REFS CRÍTICOS ==========
+  const isMountedRef = useRef<boolean>(true); // 🔥 NUEVO: Track mounted state
   const debounceTimerRef = useRef<number | null>(null);
   const lastNotesRef = useRef<NoteName[]>([]);
   const analysisWorkerRef = useRef<Worker | null>(null);
   const cleanupFunctionsRef = useRef<(() => void)[]>([]);
 
-  // ========== ZUSTAND STORES ==========
+  // ========== CONFIGURACIÓN ==========
+  const configRef = useRef<DetectionConfig>({
+    debounceTime: 150,
+    sensitivity: 0.8,
+    minNotesForChord: 3,
+    minNotesForScale: 4,
+    maxAnalysisTime: 50,
+    enableChordDetection: true,
+    enableScaleDetection: true
+  });
+
+  // ========== STORES ==========
   const detectionStore = useDetectionStore();
   const pianoStore = usePianoStore();
 
   // ========================================================================================
-  // UTILIDADES MUSICALES
+  // FUNCIONES DE ANÁLISIS MUSICAL
   // ========================================================================================
 
-  const noteToSemitone = useCallback((note: NoteName): number => {
+  const noteToChroma = useCallback((note: NoteName): number => {
     const noteMap: Record<string, number> = {
-      'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4,
-      'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9,
-      'A#': 10, 'Bb': 10, 'B': 11
+      'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5,
+      'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
     };
-    
-    const noteName = note.replace(/\d+$/, '');
-    return noteMap[noteName] ?? 0;
+    const noteName = note.replace(/\d+/, ''); // Remover octava
+    return noteMap[noteName] || 0;
   }, []);
 
-  // ========================================================================================
-  // ALGORITMOS DE DETECCIÓN
-  // ========================================================================================
+  const detectChords = useCallback((notes: NoteName[]): DetectedChord[] => {
+    if (notes.length < configRef.current.minNotesForChord) {
+      return [];
+    }
 
-  const detectChords = useCallback((notes: NoteName[]): Array<{name: string, confidence: number, root: string}> => {
-    if (notes.length < configRef.current.minNotesForChord) return [];
-
-    const results: Array<{name: string, confidence: number, root: string}> = [];
-
-    // Probar cada posible tónica
-    const uniquePitches = [...new Set(notes.map(noteToSemitone))];
+    const chromas = notes.map(noteToChroma);
+    const uniqueChromas = [...new Set(chromas)].sort((a, b) => a - b);
     
-    for (const rootPitch of uniquePitches) {
-      const normalizedPattern = uniquePitches
-        .map(pitch => (pitch - rootPitch + 12) % 12)
-        .sort((a, b) => a - b);
+    const results: DetectedChord[] = [];
 
-      // Comparar con definiciones de acordes
-      for (const chord of CHORD_DEFINITIONS) {
-        const confidence = calculatePatternMatch(normalizedPattern, chord.pattern);
-        
+    for (const chord of CHORD_DEFINITIONS) {
+      for (let root = 0; root < 12; root++) {
+        const transposedPattern = chord.pattern.map(note => (note + root) % 12);
+        const matches = transposedPattern.filter(note => uniqueChromas.includes(note));
+        const confidence = (matches.length / chord.pattern.length) * chord.weight;
+
         if (confidence >= configRef.current.sensitivity) {
-          const rootNote = Object.keys({
-            0: 'C', 1: 'C#', 2: 'D', 3: 'D#', 4: 'E', 5: 'F',
-            6: 'F#', 7: 'G', 8: 'G#', 9: 'A', 10: 'A#', 11: 'B'
-          }).find(k => parseInt(k) === rootPitch) || 'C';
+          const rootNote = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][root];
+          const chordName = chord.name.replace(/^[A-G][#b]?/, rootNote);
           
           results.push({
-            name: `${rootNote} ${chord.name}`,
-            confidence: confidence * chord.weight,
-            root: rootNote
+            name: chordName,
+            confidence,
+            notes: notes,
+            type: 'chord'
           });
         }
       }
     }
 
-    // Ordenar por confianza y retornar los mejores
-    return results
-      .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 3);
-  }, [noteToSemitone]);
+    return results.sort((a, b) => b.confidence - a.confidence).slice(0, 3);
+  }, [noteToChroma]);
 
-  const detectScales = useCallback((notes: NoteName[]): Array<{name: string, confidence: number, root: string}> => {
-    if (notes.length < configRef.current.minNotesForScale) return [];
+  const detectScales = useCallback((notes: NoteName[]): DetectedScale[] => {
+    if (notes.length < configRef.current.minNotesForScale) {
+      return [];
+    }
 
-    const results: Array<{name: string, confidence: number, root: string}> = [];
-    const uniquePitches = [...new Set(notes.map(noteToSemitone))];
+    const chromas = notes.map(noteToChroma);
+    const uniqueChromas = [...new Set(chromas)].sort((a, b) => a - b);
+    
+    const results: DetectedScale[] = [];
 
-    // Probar cada posible tónica
-    for (const rootPitch of uniquePitches) {
-      // Comparar con definiciones de escalas
-      for (const scale of SCALE_DEFINITIONS) {
-        const confidence = calculateScaleMatch(uniquePitches, scale.pattern, rootPitch);
-        
-        if (confidence >= configRef.current.sensitivity) {
-          const rootNote = Object.keys({
-            0: 'C', 1: 'C#', 2: 'D', 3: 'D#', 4: 'E', 5: 'F',
-            6: 'F#', 7: 'G', 8: 'G#', 9: 'A', 10: 'A#', 11: 'B'
-          }).find(k => parseInt(k) === rootPitch) || 'C';
+    for (const scale of SCALE_DEFINITIONS) {
+      for (let root = 0; root < 12; root++) {
+        const transposedPattern = scale.pattern.map(note => (note + root) % 12);
+        const matches = transposedPattern.filter(note => uniqueChromas.includes(note));
+        const confidence = (matches.length / scale.pattern.length) * scale.weight;
+
+        if (confidence >= configRef.current.sensitivity * 0.7) { // Scales need lower threshold
+          const rootNote = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][root];
+          const scaleName = scale.name.replace(/^[A-G][#b]?/, rootNote);
           
           results.push({
-            name: `${rootNote} ${scale.name}`,
-            confidence: confidence * scale.weight,
-            root: rootNote
+            name: scaleName,
+            confidence,
+            notes: notes,
+            type: 'scale'
           });
         }
       }
     }
 
-    // Ordenar por confianza y retornar los mejores
-    return results
-      .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 2);
-  }, [noteToSemitone]);
-
-  const calculatePatternMatch = useCallback((notes: number[], pattern: number[]): number => {
-    if (notes.length === 0 || pattern.length === 0) return 0;
-
-    // Puntuación por notas que coinciden
-    const matchingNotes = pattern.filter(note => notes.includes(note)).length;
-    const patternCoverage = matchingNotes / pattern.length;
-    
-    // Penalización por notas extra
-    const extraNotes = notes.filter(note => !pattern.includes(note)).length;
-    const extraPenalty = extraNotes * 0.2;
-    
-    // Bonificación por completitud
-    const completeness = matchingNotes === pattern.length ? 0.1 : 0;
-    
-    return Math.max(0, patternCoverage - extraPenalty + completeness);
-  }, []);
-
-  const calculateScaleMatch = useCallback((notes: number[], scalePattern: number[], root: number): number => {
-    // Normalizar notas a la tónica
-    const normalizedNotes = notes.map(note => (note - root + 12) % 12);
-    
-    // Calcular qué porcentaje de las notas están en la escala
-    const notesInScale = normalizedNotes.filter(note => scalePattern.includes(note)).length;
-    const coverage = notesInScale / normalizedNotes.length;
-    
-    // Bonificación por diversidad de grados de la escala
-    const scaleDegreesUsed = new Set(normalizedNotes.filter(note => scalePattern.includes(note))).size;
-    const diversity = scaleDegreesUsed / scalePattern.length;
-    
-    return (coverage * 0.7) + (diversity * 0.3);
-  }, []);
+    return results.sort((a, b) => b.confidence - a.confidence).slice(0, 2);
+  }, [noteToChroma]);
 
   // ========================================================================================
-  // FUNCIONES DE ANÁLISIS PRINCIPALES
+  // ANÁLISIS PRINCIPAL CON DEBOUNCING
   // ========================================================================================
 
   const analyzeNotes = useCallback(async (notes: NoteName[]): Promise<void> => {
-    // Verificar si está habilitado
-    if (!detectionState.isEnabled || !configRef.current.enableChordDetection && !configRef.current.enableScaleDetection) {
+    // Evitar análisis redundante
+    const notesStr = notes.sort().join(',');
+    const lastNotesStr = lastNotesRef.current.sort().join(',');
+    
+    if (notesStr === lastNotesStr) {
       return;
     }
 
-    // Debouncing - cancelar análisis previo
+    lastNotesRef.current = notes;
+
+    // Cancelar análisis previo
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Si las notas no han cambiado, no analizar
-    const notesKey = notes.sort().join(',');
-    const lastNotesKey = lastNotesRef.current.sort().join(',');
-    if (notesKey === lastNotesKey) {
-      return;
+    // 🔥 CORRECCIÓN: Solo setState si está montado
+    if (isMountedRef.current) {
+      setDetectionState(prev => ({ ...prev, isAnalyzing: true }));
     }
 
-    // Programar nuevo análisis
+    // Debouncing
     debounceTimerRef.current = window.setTimeout(async () => {
+      if (!configRef.current.enableChordDetection && !configRef.current.enableScaleDetection) {
+        return;
+      }
+
       try {
-        setDetectionState(prev => ({ ...prev, isAnalyzing: true, error: null }));
-        
-        const startTime = performance.now();
-        lastNotesRef.current = [...notes];
+        const analysisStart = performance.now();
 
-        let chordResults: Array<{name: string, confidence: number, root: string}> = [];
-        let scaleResults: Array<{name: string, confidence: number, root: string}> = [];
+        // Análisis paralelo
+        const [chordResults, scaleResults] = await Promise.all([
+          configRef.current.enableChordDetection ? detectChords(notes) : Promise.resolve([]),
+          configRef.current.enableScaleDetection ? detectScales(notes) : Promise.resolve([])
+        ]);
 
-        // Análisis de acordes
-        if (configRef.current.enableChordDetection && notes.length >= configRef.current.minNotesForChord) {
-          chordResults = detectChords(notes);
-        }
-
-        // Análisis de escalas
-        if (configRef.current.enableScaleDetection && notes.length >= configRef.current.minNotesForScale) {
-          scaleResults = detectScales(notes);
-        }
-
-        const analysisTime = performance.now() - startTime;
+        const analysisTime = performance.now() - analysisStart;
 
         // Verificar timeout
         if (analysisTime > configRef.current.maxAnalysisTime) {
@@ -342,15 +297,18 @@ export const useDetection = (): DetectionState & DetectionControls => {
         const chordConfidence = chordResults[0]?.confidence || 0;
         const scaleConfidence = scaleResults[0]?.confidence || 0;
 
-        setDetectionState(prev => ({
-          ...prev,
-          isAnalyzing: false,
-          currentChords: chordNames,
-          currentScales: scaleNames,
-          confidence: { chord: chordConfidence, scale: scaleConfidence },
-          lastAnalysisTime: Date.now(),
-          totalAnalyses: prev.totalAnalyses + 1
-        }));
+        // 🔥 CORRECCIÓN: Solo setState si está montado
+        if (isMountedRef.current) {
+          setDetectionState(prev => ({
+            ...prev,
+            isAnalyzing: false,
+            currentChords: chordNames,
+            currentScales: scaleNames,
+            confidence: { chord: chordConfidence, scale: scaleConfidence },
+            lastAnalysisTime: Date.now(),
+            totalAnalyses: prev.totalAnalyses + 1
+          }));
+        }
 
         console.log(`🎯 Analysis completed in ${analysisTime.toFixed(1)}ms:`, {
           chords: chordNames,
@@ -361,11 +319,14 @@ export const useDetection = (): DetectionState & DetectionControls => {
       } catch (error) {
         console.error('❌ Detection analysis failed:', error);
         
-        setDetectionState(prev => ({
-          ...prev,
-          isAnalyzing: false,
-          error: error instanceof Error ? error.message : 'Analysis failed'
-        }));
+        // 🔥 CORRECCIÓN: Solo setState si está montado
+        if (isMountedRef.current) {
+          setDetectionState(prev => ({
+            ...prev,
+            isAnalyzing: false,
+            error: error instanceof Error ? error.message : 'Analysis failed'
+          }));
+        }
       }
     }, configRef.current.debounceTime);
 
@@ -382,7 +343,9 @@ export const useDetection = (): DetectionState & DetectionControls => {
   // ========================================================================================
 
   const enable = useCallback((): void => {
-    setDetectionState(prev => ({ ...prev, isEnabled: true }));
+    if (isMountedRef.current) {
+      setDetectionState(prev => ({ ...prev, isEnabled: true }));
+    }
     detectionStore.enable();
     console.log('🎯 Detection enabled');
   }, [detectionStore]);
@@ -394,13 +357,16 @@ export const useDetection = (): DetectionState & DetectionControls => {
       debounceTimerRef.current = null;
     }
 
-    setDetectionState(prev => ({
-      ...prev,
-      isEnabled: false,
-      isAnalyzing: false,
-      currentChords: [],
-      currentScales: []
-    }));
+    // 🔥 CORRECCIÓN CRÍTICA: Solo setState si está montado
+    if (isMountedRef.current) {
+      setDetectionState(prev => ({
+        ...prev,
+        isEnabled: false,
+        isAnalyzing: false,
+        currentChords: [],
+        currentScales: []
+      }));
+    }
 
     detectionStore.disable();
     console.log('🎯 Detection disabled');
@@ -415,12 +381,14 @@ export const useDetection = (): DetectionState & DetectionControls => {
   }, [detectionState.isEnabled, enable, disable]);
 
   const clearResults = useCallback((): void => {
-    setDetectionState(prev => ({
-      ...prev,
-      currentChords: [],
-      currentScales: [],
-      confidence: { chord: 0, scale: 0 }
-    }));
+    if (isMountedRef.current) {
+      setDetectionState(prev => ({
+        ...prev,
+        currentChords: [],
+        currentScales: [],
+        confidence: { chord: 0, scale: 0 }
+      }));
+    }
 
     console.log('🎯 Detection results cleared');
   }, []);
@@ -436,7 +404,7 @@ export const useDetection = (): DetectionState & DetectionControls => {
   }, []);
 
   // ========================================================================================
-  // CLEANUP
+  // CLEANUP - CORREGIDO PARA EVITAR SETSTATE EN UNMOUNT
   // ========================================================================================
 
   const cleanup = useCallback((): void => {
@@ -456,17 +424,19 @@ export const useDetection = (): DetectionState & DetectionControls => {
     cleanupFunctionsRef.current.forEach(fn => fn());
     cleanupFunctionsRef.current = [];
 
-    // Reset estado
-    setDetectionState({
-      isEnabled: false,
-      isAnalyzing: false,
-      currentChords: [],
-      currentScales: [],
-      confidence: { chord: 0, scale: 0 },
-      lastAnalysisTime: 0,
-      totalAnalyses: 0,
-      error: null
-    });
+    // 🔥 CORRECCIÓN CRÍTICA: Solo setState si está montado
+    if (isMountedRef.current) {
+      setDetectionState({
+        isEnabled: false,
+        isAnalyzing: false,
+        currentChords: [],
+        currentScales: [],
+        confidence: { chord: 0, scale: 0 },
+        lastAnalysisTime: 0,
+        totalAnalyses: 0,
+        error: null
+      });
+    }
 
     console.log('🧹 Detection cleanup completed');
   }, []);
@@ -474,6 +444,16 @@ export const useDetection = (): DetectionState & DetectionControls => {
   // ========================================================================================
   // EFFECTS - INTEGRACIÓN CON STORES
   // ========================================================================================
+
+  // Marcar como montado al inicializar
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    // 🔥 CORRECCIÓN CRÍTICA: Marcar unmount antes de cleanup
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Suscribirse a cambios en las notas activas del piano
   useEffect(() => {
@@ -489,10 +469,24 @@ export const useDetection = (): DetectionState & DetectionControls => {
     return unsubscribe;
   }, [detectionState.isEnabled, analyzeNotes]);
 
-  // Cleanup al desmontar
+  // Cleanup al desmontar - sin setState
   useEffect(() => {
-    return cleanup;
-  }, [cleanup]);
+    return () => {
+      // 🔥 CORRECCIÓN: Solo cleanup de timers/workers, sin setState
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+
+      if (analysisWorkerRef.current) {
+        analysisWorkerRef.current.terminate();
+        analysisWorkerRef.current = null;
+      }
+
+      cleanupFunctionsRef.current.forEach(fn => fn());
+      cleanupFunctionsRef.current = [];
+    };
+  }, []);
 
   // ========================================================================================
   // RETURN HOOK

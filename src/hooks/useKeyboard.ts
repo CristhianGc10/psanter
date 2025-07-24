@@ -2,11 +2,10 @@
 /**
  * HOOK DE TECLADO - Gestión completa del teclado físico
  * Event listeners, mapeo de teclas, prevención de auto-repeat y teclas especiales
- * Fase 5: Hooks Personalizados
+ * Fase 5: Hooks Personalizados - VERSIÓN CORREGIDA
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { useSettingsStore } from '../store/settingsStore';
 import type { NoteName } from '../types/piano';
 
 // ========================================================================================
@@ -106,10 +105,10 @@ export const useKeyboard = (
   onSustainChange?: SustainEventHandler,
   onOctaveChange?: OctaveEventHandler
 ): KeyboardState & KeyboardControls => {
-  
+
   // ========== ESTADO LOCAL ==========
   const [keyboardState, setKeyboardState] = useState<KeyboardState>({
-    pressedKeys: new Set(),
+    pressedKeys: new Set<string>(),
     modifierKeys: {
       shift: false,
       ctrl: false,
@@ -121,9 +120,9 @@ export const useKeyboard = (
     preventAutoRepeat: true
   });
 
-  // ========== REFS PARA OPTIMIZACIÓN ==========
+  // ========== REFS CRÍTICOS ==========
+  const isMountedRef = useRef<boolean>(true); // 🔥 NUEVO: Track mounted state
   const pressedKeysRef = useRef<Set<string>>(new Set());
-  // keyMappingRef disponible para configuración futura
   const eventListenersRef = useRef<{
     keydown: (e: KeyboardEvent) => void;
     keyup: (e: KeyboardEvent) => void;
@@ -131,76 +130,47 @@ export const useKeyboard = (
     focus: () => void;
   } | null>(null);
 
-  // ========== ZUSTAND STORE (para configuración futura) ==========
-  // const settingsStore = useSettingsStore();
+  // ========== STORES ==========
+  // Settings store not currently used - mapping logic is self-contained
 
   // ========================================================================================
-  // UTILIDADES PARA MAPEO DE OCTAVAS
+  // HELPER FUNCTIONS
   // ========================================================================================
-
-  const adjustNoteForOctave = useCallback((note: NoteName, octaveShift: number): NoteName => {
-    const noteMatch = note.match(/^([A-G]#?)(\d+)$/);
-    if (!noteMatch) return note;
-
-    const [, noteName, octaveStr] = noteMatch;
-    const currentOctave = parseInt(octaveStr);
-    const newOctave = Math.max(0, Math.min(8, currentOctave + octaveShift));
-    
-    return `${noteName}${newOctave}` as NoteName;
-  }, []);
 
   const getCurrentKeyMapping = useCallback((): KeyboardMapping => {
-    const octaveShift = keyboardState.currentOctave - 4; // 4 es la octava base
-    const adjustedMapping: KeyboardMapping = {};
+    // TODO: Implementar diferentes layouts desde settings
+    return DEFAULT_KEY_MAPPING;
+  }, []);
 
-    Object.entries(DEFAULT_KEY_MAPPING).forEach(([key, value]) => {
-      adjustedMapping[key] = {
-        ...value,
-        note: adjustNoteForOctave(value.note, octaveShift)
-      };
-    });
-
-    return adjustedMapping;
-  }, [keyboardState.currentOctave, adjustNoteForOctave]);
-
-  // ========================================================================================
-  // CÁLCULO DE VELOCITY BASADO EN TIMING
-  // ========================================================================================
-
-  const calculateVelocity = useCallback((_keyCode: string): number => {
+  const calculateVelocity = useCallback((): number => {
     // Velocidad base
     let velocity = 0.8;
-
-    // Modificadores
-    if (keyboardState.modifierKeys.shift) {
-      velocity = Math.min(1.0, velocity + 0.2); // Shift = más fuerte
-    }
-
-    if (keyboardState.modifierKeys.ctrl) {
-      velocity = Math.max(0.1, velocity - 0.3); // Ctrl = más suave
-    }
-
-    // Randomización ligera para humanizar
-    velocity += (Math.random() - 0.5) * 0.1;
     
-    return Math.max(0.1, Math.min(1.0, velocity));
+    // Modificador por tecla shift (más fuerte)
+    if (keyboardState.modifierKeys.shift) {
+      velocity = Math.min(1.0, velocity + 0.2);
+    }
+    
+    // Modificador por tecla ctrl (más suave)
+    if (keyboardState.modifierKeys.ctrl) {
+      velocity = Math.max(0.3, velocity - 0.3);
+    }
+    
+    return velocity;
   }, [keyboardState.modifierKeys]);
 
   // ========================================================================================
-  // MANEJADORES DE EVENTOS
+  // EVENT HANDLERS PRINCIPALES
   // ========================================================================================
 
   const handleKeyDown = useCallback((event: KeyboardEvent): void => {
-    // Verificar si el hook está activo
     if (!keyboardState.isActive) return;
 
-    const { code, repeat, target } = event;
+    const { code, repeat } = event;
 
     // Prevenir auto-repeat si está habilitado
-    if (keyboardState.preventAutoRepeat && repeat) return;
-
-    // Ignorar eventos en inputs/textareas
-    if (target && (target as HTMLElement).tagName?.match(/INPUT|TEXTAREA|SELECT/)) {
+    if (keyboardState.preventAutoRepeat && repeat) {
+      event.preventDefault();
       return;
     }
 
@@ -212,51 +182,53 @@ export const useKeyboard = (
 
     // ========== TECLAS ESPECIALES ==========
     
-    // Sustain (Barra espaciadora)
-    if (SPECIAL_KEYS.SUSTAIN.includes(code)) {
+    // Sustain
+    if (SPECIAL_KEYS.SUSTAIN.includes(code) && !pressedKeysRef.current.has(code)) {
       event.preventDefault();
-      if (!pressedKeysRef.current.has(code)) {
-        newModifiers.sustain = !newModifiers.sustain;
-        onSustainChange?.(newModifiers.sustain);
-        pressedKeysRef.current.add(code);
+      pressedKeysRef.current.add(code);
+      const newSustain = !keyboardState.modifierKeys.sustain;
+      newModifiers.sustain = newSustain;
+      onSustainChange?.(newSustain);
+      
+      // 🔥 CORRECCIÓN: Solo setState si está montado
+      if (isMountedRef.current) {
+        setKeyboardState(prev => ({ ...prev, modifierKeys: newModifiers }));
       }
-      setKeyboardState(prev => ({ ...prev, modifierKeys: newModifiers }));
       return;
     }
 
     // Cambio de octava
     if (SPECIAL_KEYS.OCTAVE_UP.includes(code)) {
       event.preventDefault();
-      if (!pressedKeysRef.current.has(code)) {
-        const newOctave = Math.min(7, keyboardState.currentOctave + 1);
-        setKeyboardState(prev => ({ ...prev, currentOctave: newOctave }));
-        onOctaveChange?.(newOctave);
-        pressedKeysRef.current.add(code);
+      const newOctave = Math.min(7, keyboardState.currentOctave + 1);
+      onOctaveChange?.(newOctave);
+      if (isMountedRef.current) {
+        setKeyboardState(prev => ({ ...prev, currentOctave: newOctave, modifierKeys: newModifiers }));
       }
       return;
     }
 
     if (SPECIAL_KEYS.OCTAVE_DOWN.includes(code)) {
       event.preventDefault();
-      if (!pressedKeysRef.current.has(code)) {
-        const newOctave = Math.max(1, keyboardState.currentOctave - 1);
-        setKeyboardState(prev => ({ ...prev, currentOctave: newOctave }));
-        onOctaveChange?.(newOctave);
-        pressedKeysRef.current.add(code);
+      const newOctave = Math.max(1, keyboardState.currentOctave - 1);
+      onOctaveChange?.(newOctave);
+      if (isMountedRef.current) {
+        setKeyboardState(prev => ({ ...prev, currentOctave: newOctave, modifierKeys: newModifiers }));
       }
       return;
     }
 
-    // Panic (ESC - detener todas las notas)
+    // Pánico (detener todas las notas)
     if (SPECIAL_KEYS.PANIC.includes(code)) {
       event.preventDefault();
       pressedKeysRef.current.clear();
-      setKeyboardState(prev => ({ 
-        ...prev, 
-        pressedKeys: new Set(),
-        modifierKeys: { ...prev.modifierKeys, sustain: false }
-      }));
-      onSustainChange?.(false);
+      if (isMountedRef.current) {
+        setKeyboardState(prev => ({
+          ...prev,
+          pressedKeys: new Set(),
+          modifierKeys: newModifiers
+        }));
+      }
       return;
     }
 
@@ -268,7 +240,7 @@ export const useKeyboard = (
     if (keyMapping && !pressedKeysRef.current.has(code)) {
       event.preventDefault();
       
-      const velocity = calculateVelocity(code);
+      const velocity = calculateVelocity();
       
       // Agregar a teclas presionadas
       pressedKeysRef.current.add(code);
@@ -276,12 +248,14 @@ export const useKeyboard = (
       // Llamar handler
       onKeyboardNote?.(keyMapping.note, velocity, true);
       
-      // Actualizar estado
-      setKeyboardState(prev => ({
-        ...prev,
-        pressedKeys: new Set(pressedKeysRef.current),
-        modifierKeys: newModifiers
-      }));
+      // 🔥 CORRECCIÓN: Solo setState si está montado
+      if (isMountedRef.current) {
+        setKeyboardState(prev => ({
+          ...prev,
+          pressedKeys: new Set(pressedKeysRef.current),
+          modifierKeys: newModifiers
+        }));
+      }
 
       console.log(`⌨️ Key pressed: ${code} -> ${keyMapping.note} (vel: ${velocity.toFixed(2)})`);
     }
@@ -314,7 +288,9 @@ export const useKeyboard = (
         SPECIAL_KEYS.OCTAVE_DOWN.includes(code) ||
         SPECIAL_KEYS.PANIC.includes(code)) {
       pressedKeysRef.current.delete(code);
-      setKeyboardState(prev => ({ ...prev, modifierKeys: newModifiers }));
+      if (isMountedRef.current) {
+        setKeyboardState(prev => ({ ...prev, modifierKeys: newModifiers }));
+      }
       return;
     }
 
@@ -330,12 +306,14 @@ export const useKeyboard = (
       // Llamar handler
       onKeyboardNote?.(keyMapping.note, 0, false);
       
-      // Actualizar estado
-      setKeyboardState(prev => ({
-        ...prev,
-        pressedKeys: new Set(pressedKeysRef.current),
-        modifierKeys: newModifiers
-      }));
+      // 🔥 CORRECCIÓN: Solo setState si está montado
+      if (isMountedRef.current) {
+        setKeyboardState(prev => ({
+          ...prev,
+          pressedKeys: new Set(pressedKeysRef.current),
+          modifierKeys: newModifiers
+        }));
+      }
 
       console.log(`⌨️ Key released: ${code} -> ${keyMapping.note}`);
     }
@@ -353,16 +331,18 @@ export const useKeyboard = (
   const handleBlur = useCallback(() => {
     // Limpiar todas las teclas cuando se pierde el foco
     pressedKeysRef.current.clear();
-    setKeyboardState(prev => ({
-      ...prev,
-      pressedKeys: new Set(),
-      modifierKeys: {
-        shift: false,
-        ctrl: false,
-        alt: false,
-        sustain: prev.modifierKeys.sustain // Mantener sustain
-      }
-    }));
+    if (isMountedRef.current) {
+      setKeyboardState(prev => ({
+        ...prev,
+        pressedKeys: new Set(),
+        modifierKeys: {
+          shift: false,
+          ctrl: false,
+          alt: false,
+          sustain: prev.modifierKeys.sustain // Mantener sustain
+        }
+      }));
+    }
     console.log('⌨️ Window blur - cleared all pressed keys');
   }, []);
 
@@ -375,33 +355,41 @@ export const useKeyboard = (
   // ========================================================================================
 
   const enable = useCallback(() => {
-    setKeyboardState(prev => ({ ...prev, isActive: true }));
+    if (isMountedRef.current) {
+      setKeyboardState(prev => ({ ...prev, isActive: true }));
+    }
     console.log('⌨️ Keyboard enabled');
   }, []);
 
   const disable = useCallback(() => {
     // Limpiar teclas presionadas al deshabilitar
     pressedKeysRef.current.clear();
-    setKeyboardState(prev => ({
-      ...prev,
-      isActive: false,
-      pressedKeys: new Set()
-    }));
+    if (isMountedRef.current) {
+      setKeyboardState(prev => ({
+        ...prev,
+        isActive: false,
+        pressedKeys: new Set()
+      }));
+    }
     console.log('⌨️ Keyboard disabled');
   }, []);
 
   const setOctave = useCallback((octave: number) => {
     const clampedOctave = Math.max(1, Math.min(7, octave));
-    setKeyboardState(prev => ({ ...prev, currentOctave: clampedOctave }));
+    if (isMountedRef.current) {
+      setKeyboardState(prev => ({ ...prev, currentOctave: clampedOctave }));
+    }
     onOctaveChange?.(clampedOctave);
     console.log(`⌨️ Octave changed to: ${clampedOctave}`);
   }, [onOctaveChange]);
 
   const setSustain = useCallback((active: boolean) => {
-    setKeyboardState(prev => ({
-      ...prev,
-      modifierKeys: { ...prev.modifierKeys, sustain: active }
-    }));
+    if (isMountedRef.current) {
+      setKeyboardState(prev => ({
+        ...prev,
+        modifierKeys: { ...prev.modifierKeys, sustain: active }
+      }));
+    }
     onSustainChange?.(active);
     console.log(`⌨️ Sustain ${active ? 'enabled' : 'disabled'}`);
   }, [onSustainChange]);
@@ -415,10 +403,11 @@ export const useKeyboard = (
   }, [getCurrentKeyMapping]);
 
   // ========================================================================================
-  // CLEANUP
+  // CLEANUP - CORREGIDO PARA EVITAR SETSTATE EN UNMOUNT
   // ========================================================================================
 
   const cleanup = useCallback(() => {
+    // Remover event listeners
     if (eventListenersRef.current) {
       window.removeEventListener('keydown', eventListenersRef.current.keydown);
       window.removeEventListener('keyup', eventListenersRef.current.keyup);
@@ -427,12 +416,17 @@ export const useKeyboard = (
       eventListenersRef.current = null;
     }
     
+    // Limpiar refs pero NO setState durante unmount
     pressedKeysRef.current.clear();
-    setKeyboardState(prev => ({
-      ...prev,
-      pressedKeys: new Set(),
-      modifierKeys: { shift: false, ctrl: false, alt: false, sustain: false }
-    }));
+    
+    // 🔥 CORRECCIÓN CRÍTICA: Solo setState si el componente está montado
+    if (isMountedRef.current) {
+      setKeyboardState(prev => ({
+        ...prev,
+        pressedKeys: new Set(),
+        modifierKeys: { shift: false, ctrl: false, alt: false, sustain: false }
+      }));
+    }
     
     console.log('⌨️ Keyboard cleanup completed');
   }, []);
@@ -442,6 +436,9 @@ export const useKeyboard = (
   // ========================================================================================
 
   useEffect(() => {
+    // Marcar como montado
+    isMountedRef.current = true;
+
     // Crear los event listeners
     const listeners = {
       keydown: handleKeyDown,
@@ -461,8 +458,11 @@ export const useKeyboard = (
 
     console.log('⌨️ Keyboard event listeners attached');
 
-    // Cleanup al desmontar
-    return cleanup;
+    // 🔥 CORRECCIÓN CRÍTICA: Cleanup function que marca unmount
+    return () => {
+      isMountedRef.current = false; // Marcar como desmontado PRIMERO
+      cleanup(); // Luego hacer cleanup
+    };
   }, [handleKeyDown, handleKeyUp, handleBlur, handleFocus, cleanup]);
 
   // ========================================================================================
