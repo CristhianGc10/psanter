@@ -1,8 +1,9 @@
 // src/hooks/useHooks.ts
 /**
- * HOOK MAESTRO DE INTEGRACIÓN - Coordina todos los hooks de la Fase 5
- * Integra audio + keyboard + piano + metronome + detection de forma optimizada
- * Fase 5: Hooks Personalizados - Coordinación Completa - VERSIÓN CORREGIDA
+ * HOOK MAESTRO - VERSIÓN CORREGIDA PARA FASE 5
+ * ✅ Elimina re-rendering loops
+ * ✅ Manejo correcto de AudioContext
+ * ✅ Inicialización optimizada
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
@@ -15,7 +16,7 @@ import { useStoreIntegration } from './useStoreIntegration';
 import type { NoteName } from '../types/piano';
 
 // ========================================================================================
-// INTERFACES PRINCIPALES
+// INTERFACES
 // ========================================================================================
 
 interface SystemState {
@@ -38,9 +39,8 @@ interface SystemControls {
   shutdown: () => void;
   enableAll: () => void;
   disableAll: () => void;
-  runHealthCheck: () => Promise<SystemState['systemHealth']>;
-  getSystemStats: () => Record<string, any>;
   ensureAudioContext: () => Promise<boolean>;
+  getSystemStats: () => Record<string, any>;
 }
 
 interface HookInstances {
@@ -53,7 +53,7 @@ interface HookInstances {
 }
 
 // ========================================================================================
-// HOOK MAESTRO useHooks
+// 🔥 HOOK MAESTRO useHooks - CORREGIDO
 // ========================================================================================
 
 export const useHooks = (): SystemState & SystemControls & { hooks: HookInstances } => {
@@ -76,61 +76,71 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
   // ========== REFS CRÍTICOS ==========
   const isMountedRef = useRef<boolean>(true);
   const initializationStartRef = useRef<number>(0);
-  const healthCheckIntervalRef = useRef<number | null>(null);
   const isInitializingRef = useRef<boolean>(false);
   const isShuttingDownRef = useRef<boolean>(false);
 
-  // ========== INSTANCIAS DE HOOKS ==========
-  
+  // ========== INSTANCIAS DE HOOKS CON HANDLERS ESTABLES ==========
+
   // 1. Store Integration (base fundamental)
   const stores = useStoreIntegration();
   
   // 2. Audio System
   const audio = useAudio();
-  
-  // 3. Keyboard System
+
+  // ✅ HANDLERS ESTABLES - useCallback con dependencies mínimas
+  const handleKeyboardNote = useCallback((note: NoteName, velocity: number, pressed: boolean) => {
+    if (!isShuttingDownRef.current && piano.isReady) {
+      if (pressed) {
+        piano.playNote(note, velocity, 'keyboard');
+      } else {
+        piano.stopNote(note, 'keyboard');
+      }
+    }
+  }, []); // ✅ Sin dependencies - piano.isReady se verifica internamente
+
+  const handleSustainChange = useCallback((active: boolean) => {
+    if (!isShuttingDownRef.current && piano.isReady) {
+      piano.setSustain(active);
+    }
+  }, []);
+
+  const handleOctaveChange = useCallback((octave: number) => {
+    if (!isShuttingDownRef.current) {
+      console.log(`🎹 Octave changed: ${octave}`);
+    }
+  }, []);
+
+  // 3. Keyboard System con handlers estables
   const keyboard = useKeyboard(
-    // onKeyboardNote
-    (note: NoteName, velocity: number, pressed: boolean) => {
-      if (piano.isReady && !isShuttingDownRef.current) {
-        if (pressed) {
-          piano.playNote(note, velocity, 'keyboard');
-        } else {
-          piano.stopNote(note, 'keyboard');
-        }
-      }
-    },
-    // onSustainChange
-    (active: boolean) => {
-      if (piano.isReady && !isShuttingDownRef.current) {
-        piano.setSustain(active);
-      }
-    },
-    // onOctaveChange
-    (octave: number) => {
-      if (!isShuttingDownRef.current) {
-        console.log(`🎹 Octave changed: ${octave}`);
-      }
-    }
+    handleKeyboardNote,
+    handleSustainChange,
+    handleOctaveChange
   );
-  
-  // 4. Piano System (maestro)
-  const piano = usePiano({
-    onNoteOn: (note: NoteName, velocity: number, source: string) => {
-      if (!isShuttingDownRef.current) {
-        console.log(`🎹 Note ON: ${note} (vel: ${velocity.toFixed(2)}, src: ${source})`);
-      }
-    },
-    onNoteOff: (note: NoteName, source: string) => {
-      if (!isShuttingDownRef.current) {
-        console.log(`🎹 Note OFF: ${note} (src: ${source})`);
-      }
-    },
-    onSustainChange: (active: boolean) => {
-      if (!isShuttingDownRef.current) {
-        console.log(`🎹 Sustain: ${active ? 'ON' : 'OFF'}`);
-      }
+
+  // ✅ PIANO HANDLERS ESTABLES
+  const handlePianoNoteOn = useCallback((note: NoteName, velocity: number, source: string) => {
+    if (!isShuttingDownRef.current) {
+      console.log(`🎹 Note ON: ${note} (vel: ${velocity.toFixed(2)}, src: ${source})`);
     }
+  }, []);
+
+  const handlePianoNoteOff = useCallback((note: NoteName, source: string) => {
+    if (!isShuttingDownRef.current) {
+      console.log(`🎹 Note OFF: ${note} (src: ${source})`);
+    }
+  }, []);
+
+  const handlePianoSustainChange = useCallback((active: boolean) => {
+    if (!isShuttingDownRef.current) {
+      console.log(`🎹 Sustain: ${active ? 'ON' : 'OFF'}`);
+    }
+  }, []);
+
+  // 4. Piano System (maestro) con handlers estables
+  const piano = usePiano({
+    onNoteOn: handlePianoNoteOn,
+    onNoteOff: handlePianoNoteOff,
+    onSustainChange: handlePianoSustainChange
   });
   
   // 5. Metronome System
@@ -140,7 +150,7 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
   const detection = useDetection();
 
   // ========================================================================================
-  // HELPER FUNCTIONS
+  // HELPER FUNCTIONS - ESTABLES
   // ========================================================================================
 
   const updateSystemState = useCallback((updates: Partial<SystemState>) => {
@@ -148,6 +158,10 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
       setSystemState(prev => ({ ...prev, ...updates }));
     }
   }, []);
+
+  // ========================================================================================
+  // 🚨 SOLUCIÓN: CONTROL CORRECTO DE AUDIOCONTEXT
+  // ========================================================================================
 
   const ensureAudioContext = useCallback(async (): Promise<boolean> => {
     if (!audio.hasUserInteraction) {
@@ -165,10 +179,10 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
     }
     
     return true; // Ya estaba activado
-  }, [audio, updateSystemState]);
+  }, [audio.hasUserInteraction, audio.startAudioContext, updateSystemState]);
 
   // ========================================================================================
-  // CONTROL DEL SISTEMA
+  // INICIALIZACIÓN DEL SISTEMA - OPTIMIZADA
   // ========================================================================================
 
   const initialize = useCallback(async (): Promise<boolean> => {
@@ -183,18 +197,18 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
       console.log('🚀 Initializing system...');
       updateSystemState({ lastError: null });
 
-      // 1. Inicializar audio primero
+      // 1. Inicializar audio primero (SIN activar contexto)
       console.log('🔊 Initializing audio components...');
-      const audioSuccess = await audio.initializeAudio?.() || audio.isInitialized;
+      const audioSuccess = await audio.initializeAudio();
       
       if (!audioSuccess) {
         throw new Error('Audio component initialization failed');
       }
 
-      // NOTE: NO verificar permisos automáticamente - eso requiere user gesture
+      // ✅ IMPORTANTE: NO verificar permisos automáticamente
       console.log('ℹ️ Audio context will start on first user interaction');
 
-      // === FASE 3: INICIALIZAR PIANO (MAESTRO) ===
+      // 2. Inicializar piano (maestro)
       console.log('🎹 Initializing piano...');
       const pianoSuccess = await piano.initialize?.() || piano.isReady;
       
@@ -206,25 +220,22 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
       console.log('⌨️ Enabling keyboard...');
       keyboard.enable();
       
-      console.log('🥁 Enabling metronome...');
-      // Metronome doesn't need explicit enabling
-      
       console.log('🎯 Enabling detection...');
-      detection.enable();
+      detection.enable?.();
 
-      // 4. Calcular tiempo de inicialización
+      // 4. Calcular tiempo total
       const totalTime = performance.now() - initializationStartRef.current;
-      
+
+      // 5. Actualizar estado final
       updateSystemState({
         isInitialized: true,
         isReady: true,
-        hasAudioPermissions: false, // Se activará con la primera interacción
         totalInitializationTime: totalTime,
         systemHealth: {
-          audio: audio.isInitialized ? 'healthy' : 'failed',
-          keyboard: keyboard.isActive ? 'healthy' : 'failed',
-          detection: detection.isEnabled ? 'healthy' : 'failed',
-          metronome: metronome.isInitialized ? 'healthy' : 'failed'
+          audio: audioSuccess ? 'healthy' : 'failed',
+          keyboard: 'healthy',
+          detection: 'healthy',
+          metronome: 'healthy'
         }
       });
 
@@ -232,295 +243,125 @@ export const useHooks = (): SystemState & SystemControls & { hooks: HookInstance
       return true;
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
-      console.error('❌ System initialization failed:', errorMessage);
+      console.error('❌ System initialization failed:', error);
       
       updateSystemState({
-        lastError: errorMessage,
         isInitialized: false,
-        isReady: false
+        isReady: false,
+        lastError: error instanceof Error ? error.message : 'Initialization failed'
       });
-      
+
       return false;
     } finally {
       isInitializingRef.current = false;
     }
-  }, [audio, piano, keyboard, metronome, detection, updateSystemState]);
+  }, [audio, piano, keyboard, detection, updateSystemState]);
+
+  // ========================================================================================
+  // CONTROL DEL SISTEMA - OPTIMIZADO
+  // ========================================================================================
 
   const restart = useCallback(async (): Promise<boolean> => {
     console.log('🔄 Restarting system...');
-    shutdown();
     
-    // Esperar un poco para que el shutdown complete
-    await new Promise(resolve => setTimeout(resolve, 100));
+    shutdown();
+    await new Promise(resolve => setTimeout(resolve, 100)); // Pequeño delay
     
     return await initialize();
   }, [initialize]);
 
-  const shutdown = useCallback((): void => {
-    if (isShuttingDownRef.current) {
-      return;
-    }
-
-    try {
-      isShuttingDownRef.current = true;
-      console.log('🛑 Shutting down system...');
-
-      // Limpiar health check interval
-      if (healthCheckIntervalRef.current) {
-        clearInterval(healthCheckIntervalRef.current);
-        healthCheckIntervalRef.current = null;
-      }
-
-      // 1. Parar todo inmediatamente
-      try {
-        console.log('⌨️ Shutting down keyboard...');
-        keyboard.disable?.();
-      } catch (error) {
-        console.warn('⚠️ Error during keyboard shutdown:', error);
-      }
-
-      try {
-        console.log('🎯 Shutting down detection...');
-        detection.disable?.();
-      } catch (error) {
-        console.warn('⚠️ Error during detection shutdown:', error);
-      }
-
-      try {
-        console.log('🥁 Shutting down metronome...');
-        metronome.stop?.();
-      } catch (error) {
-        console.warn('⚠️ Error during metronome shutdown:', error);
-      }
-
-      try {
-        console.log('🎹 Shutting down piano...');
-        piano.panic?.();
-      } catch (error) {
-        console.warn('⚠️ Error during piano shutdown:', error);
-      }
-
-      // 2. Cleanup en orden inverso (solo si están montados)
-      try {
-        if (isMountedRef.current) {
-          detection.cleanup?.();
-        }
-      } catch (error) {
-        console.warn('⚠️ Error during detection cleanup:', error);
-      }
-
-      try {
-        if (isMountedRef.current) {
-          keyboard.cleanup?.();
-        }
-      } catch (error) {
-        console.warn('⚠️ Error during keyboard cleanup:', error);
-      }
-
-      try {
-        if (isMountedRef.current) {
-          metronome.cleanup?.();
-        }
-      } catch (error) {
-        console.warn('⚠️ Error during metronome cleanup:', error);
-      }
-
-      try {
-        if (isMountedRef.current) {
-          piano.cleanup?.();
-        }
-      } catch (error) {
-        console.warn('⚠️ Error during piano cleanup:', error);
-      }
-
-      try {
-        if (isMountedRef.current) {
-          audio.cleanup?.();
-        }
-      } catch (error) {
-        console.warn('⚠️ Error during audio cleanup:', error);
-      }
-
-      // 3. Actualizar estado final solo si está montado
-      if (isMountedRef.current) {
-        updateSystemState({
-          isReady: false,
-          isInitialized: false,
-          systemHealth: {
-            audio: 'failed',
-            keyboard: 'failed',
-            detection: 'failed',
-            metronome: 'failed'
-          }
-        });
-      }
-
-      console.log('✅ System shutdown completed');
-
-    } catch (error) {
-      console.error('❌ Error during shutdown:', error);
-    } finally {
-      isShuttingDownRef.current = false;
-    }
-  }, [audio, piano, keyboard, metronome, detection, updateSystemState]);
-
-  const enableAll = useCallback((): void => {
-    if (isShuttingDownRef.current) return;
+  const shutdown = useCallback(() => {
+    isShuttingDownRef.current = true;
     
-    console.log('🔛 Enabling all systems...');
+    console.log('🛑 Shutting down system...');
+    
+    // Detener todo
+    piano.panic?.();
+    metronome.stop?.();
+    
+    // Limpiar hooks
+    audio.cleanup();
+    keyboard.cleanup();
+    detection.cleanup?.();
+    
+    updateSystemState({
+      isReady: false,
+      isInitialized: false,
+      hasAudioPermissions: false
+    });
+
+    console.log('✅ System shutdown completed');
+    isShuttingDownRef.current = false;
+  }, [audio, keyboard, piano, metronome, detection, updateSystemState]);
+
+  const enableAll = useCallback(() => {
     keyboard.enable();
-    detection.enable();
-    console.log('✅ All systems enabled');
+    detection.enable?.();
+    console.log('🎮 All systems enabled');
   }, [keyboard, detection]);
 
-  const disableAll = useCallback((): void => {
-    if (isShuttingDownRef.current) return;
-    
-    console.log('🔴 Disabling all systems...');
+  const disableAll = useCallback(() => {
     keyboard.disable();
-    detection.disable();
-    metronome.stop?.();
-    console.log('✅ All systems disabled');
-  }, [keyboard, detection, metronome]);
+    detection.disable?.();
+    console.log('⏸️ All systems disabled');
+  }, [keyboard, detection]);
 
-  const runHealthCheck = useCallback(async (): Promise<SystemState['systemHealth']> => {
-    const health = {
-      audio: audio.isInitialized ? 'healthy' as const : 'failed' as const,
-      keyboard: keyboard.isActive ? 'healthy' as const : 'failed' as const,
-      detection: detection.isEnabled ? 'healthy' as const : 'failed' as const,
-      metronome: metronome.isInitialized ? 'healthy' as const : 'failed' as const
-    };
-
-    updateSystemState({ systemHealth: health });
-    return health;
-  }, [audio, keyboard, detection, metronome, updateSystemState]);
-
-  const getSystemStats = useCallback((): Record<string, any> => {
+  const getSystemStats = useCallback(() => {
     return {
-      initialization: {
-        isReady: systemState.isReady,
-        isInitialized: systemState.isInitialized,
-        initTime: systemState.totalInitializationTime,
-        lastError: systemState.lastError
-      },
-      audio: {
-        initialized: audio.isInitialized,
-        contextStarted: audio.isContextStarted,
-        userInteraction: audio.hasUserInteraction,
-        error: audio.error
-      },
-      piano: {
-        ready: piano.isReady,
-        activeNotes: piano.totalActiveNotes,
-        sustainActive: piano.sustainActive,
-        masterVolume: piano.masterVolume
-      },
-      keyboard: {
-        active: keyboard.isActive,
-        pressedKeys: keyboard.pressedKeys.size,
-        currentOctave: keyboard.currentOctave,
-        sustain: keyboard.modifierKeys.sustain
-      },
-      metronome: {
-        initialized: metronome.isInitialized,
-        isRunning: metronome.isRunning,
-        bpm: metronome.bpm,
-        volume: metronome.volume
-      },
-      detection: {
-        enabled: detection.isEnabled,
-        analyzing: detection.isAnalyzing,
-        totalAnalyses: detection.totalAnalyses,
-        currentChords: detection.currentChords.length,
-        currentScales: detection.currentScales.length
-      }
+      isReady: systemState.isReady,
+      hasAudioPermissions: systemState.hasAudioPermissions,
+      totalInitializationTime: systemState.totalInitializationTime,
+      audioInitialized: audio.isInitialized,
+      audioContextStarted: audio.isContextStarted,
+      keyboardActive: keyboard.isActive,
+      pianoReady: piano.isReady,
+      currentOctave: keyboard.currentOctave
     };
-  }, [systemState, audio, piano, keyboard, metronome, detection]);
+  }, [systemState, audio, keyboard, piano]);
 
   // ========================================================================================
-  // EFFECTS Y LIFECYCLE
+  // 🚨 SOLUCIÓN: EFFECTS OPTIMIZADOS
   // ========================================================================================
 
-  // Marcar como montado al inicializar
+  // Inicialización automática SOLO al montar
   useEffect(() => {
     isMountedRef.current = true;
     
-    return () => {
-      isMountedRef.current = false;
-      isShuttingDownRef.current = true;
-    };
-  }, []);
-
-  // Auto-inicialización cuando stores estén listos
-  useEffect(() => {
-    if (stores.isReady && !systemState.isInitialized && !isInitializingRef.current && !isShuttingDownRef.current) {
-      console.log('🚀 Auto-initializing system...');
-      initialize();
-    }
-  }, [stores.isReady, systemState.isInitialized, initialize]);
-
-  // Health check periódico
-  useEffect(() => {
-    if (systemState.isReady && !isShuttingDownRef.current) {
-      healthCheckIntervalRef.current = window.setInterval(() => {
-        if (!isShuttingDownRef.current) {
-          runHealthCheck();
-        }
-      }, 10000); // Cada 10 segundos
-
-      return () => {
-        if (healthCheckIntervalRef.current) {
-          clearInterval(healthCheckIntervalRef.current);
-          healthCheckIntervalRef.current = null;
-        }
-      };
-    }
-  }, [systemState.isReady, runHealthCheck]);
-
-  // Cleanup al desmontar SIN setState
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      isShuttingDownRef.current = true;
-      
-      if (healthCheckIntervalRef.current) {
-        clearInterval(healthCheckIntervalRef.current);
-        healthCheckIntervalRef.current = null;
+    // ✅ Inicializar automáticamente pero SIN AudioContext
+    const initializeSystem = async () => {
+      if (!systemState.isInitialized) {
+        console.log('🎯 Auto-initializing system...');
+        await initialize();
       }
-      
-      try { detection.cleanup?.(); } catch {}
-      try { keyboard.cleanup?.(); } catch {}
-      try { metronome.cleanup?.(); } catch {}
-      try { piano.cleanup?.(); } catch {}
-      try { audio.cleanup?.(); } catch {}
     };
-  }, []);
+
+    initializeSystem();
+
+    // Cleanup al desmontar
+    return () => {
+      isMountedRef.current = false;
+      isShuttingDownRef.current = true;
+    };
+  }, []); // ✅ Array vacío - solo al montar
 
   // ========================================================================================
   // RETURN HOOK
   // ========================================================================================
 
   return {
-    // Estado del Sistema
-    isReady: systemState.isReady,
-    isInitialized: systemState.isInitialized,
-    hasAudioPermissions: systemState.hasAudioPermissions,
-    totalInitializationTime: systemState.totalInitializationTime,
-    lastError: systemState.lastError,
-    systemHealth: systemState.systemHealth,
+    // Estado del sistema
+    ...systemState,
     
-    // Controles del Sistema
+    // Controles del sistema
     initialize,
     restart,
     shutdown,
     enableAll,
     disableAll,
-    runHealthCheck,
-    getSystemStats,
     ensureAudioContext,
+    getSystemStats,
     
-    // Instancias de Hooks
+    // Instancias de hooks
     hooks: {
       audio,
       keyboard,

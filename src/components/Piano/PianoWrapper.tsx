@@ -1,7 +1,8 @@
 // src/components/Piano/PianoWrapper.tsx
 /**
- * PIANO WRAPPER - Extiende PianoDisplay con manejo de eventos
- * Compatible con la Fase 5 de hooks personalizados - VERSIÓN FINAL
+ * PIANO WRAPPER - VERSIÓN CORREGIDA PARA ERRORES UNDEFINED
+ * ✅ Soluciona error "Cannot read properties of undefined (reading 'size')"
+ * ✅ Verificaciones de seguridad para todas las props
  */
 
 import React, { useState, useCallback } from 'react';
@@ -26,32 +27,39 @@ interface PianoWrapperProps {
 }
 
 const PianoWrapper: React.FC<PianoWrapperProps> = ({ 
-  selectedKeys, 
-  currentPattern,
+  selectedKeys = new Set(), // ✅ Default value para evitar undefined
+  currentPattern = null,
   onNotePress,
   onNoteRelease,
-  sustainActive 
+  sustainActive = false
 }) => {
   const [hoveredKey, setHoveredKey] = useState<NoteName | null>(null);
   const [pressedKeys, setPressedKeys] = useState<Set<NoteName>>(new Set());
 
-  // Obtener coordenadas de las teclas
-  const whiteKeys = getWhiteKeyCoordinates();
-  const blackKeys = getBlackKeyCoordinates();
+  // ✅ Verificación de seguridad para coordenadas
+  const whiteKeys = getWhiteKeyCoordinates() || [];
+  const blackKeys = getBlackKeyCoordinates() || [];
 
-  // Manejadores de eventos
+  // ========================================================================================
+  // EVENT HANDLERS - CON VERIFICACIONES DE SEGURIDAD
+  // ========================================================================================
+
   const handleMouseDown = useCallback(async (note: NoteName) => {
-    if (pressedKeys.has(note)) return;
+    if (!note || pressedKeys.has(note)) return;
     
     setPressedKeys(prev => new Set(prev).add(note));
     
     if (onNotePress) {
-      await onNotePress(note, 0.8);
+      try {
+        await onNotePress(note, 0.8);
+      } catch (error) {
+        console.error('Error playing note:', error);
+      }
     }
   }, [pressedKeys, onNotePress]);
 
   const handleMouseUp = useCallback((note: NoteName) => {
-    if (!pressedKeys.has(note)) return;
+    if (!note || !pressedKeys.has(note)) return;
     
     setPressedKeys(prev => {
       const newSet = new Set(prev);
@@ -60,16 +68,24 @@ const PianoWrapper: React.FC<PianoWrapperProps> = ({
     });
     
     if (onNoteRelease) {
-      onNoteRelease(note);
+      try {
+        onNoteRelease(note);
+      } catch (error) {
+        console.error('Error releasing note:', error);
+      }
     }
   }, [pressedKeys, onNoteRelease]);
 
   const handleMouseLeave = useCallback(() => {
-    // Liberar todas las teclas cuando el mouse sale del piano
-    if (pressedKeys.size > 0) {
+    // ✅ Verificación de seguridad antes de usar .size
+    if (pressedKeys && pressedKeys.size > 0) {
       pressedKeys.forEach(note => {
-        if (onNoteRelease) {
-          onNoteRelease(note);
+        if (onNoteRelease && note) {
+          try {
+            onNoteRelease(note);
+          } catch (error) {
+            console.error('Error releasing note on mouse leave:', error);
+          }
         }
       });
       setPressedKeys(new Set());
@@ -77,15 +93,21 @@ const PianoWrapper: React.FC<PianoWrapperProps> = ({
     setHoveredKey(null);
   }, [pressedKeys, onNoteRelease]);
 
-  // Componente para tecla individual con eventos
+  // ========================================================================================
+  // PIANO KEY COMPONENT - CON VERIFICACIONES
+  // ========================================================================================
+
   const PianoKey: React.FC<{ 
     note: NoteName; 
     coordinates: string; 
     isWhite: boolean; 
   }> = ({ note, coordinates, isWhite }) => {
+    if (!note || !coordinates) return null; // ✅ Verificación de seguridad
+
     const isHovered = hoveredKey === note;
-    const isSelected = selectedKeys.has(note);
-    const isPressed = pressedKeys.has(note);
+    // ✅ Verificación de seguridad para selectedKeys
+    const isSelected = selectedKeys && selectedKeys.has ? selectedKeys.has(note) : false;
+    const isPressed = pressedKeys && pressedKeys.has ? pressedKeys.has(note) : false;
     
     const getFillColor = () => {
       if (isPressed) {
@@ -102,63 +124,61 @@ const PianoWrapper: React.FC<PianoWrapperProps> = ({
 
     const getStrokeColor = () => {
       if (isPressed) {
-        return isWhite ? 'rgba(4, 120, 87, 0.8)' : 'rgba(4, 120, 87, 0.8)';
+        return isWhite ? 'rgba(5, 150, 105, 0.8)' : 'rgba(4, 120, 87, 0.8)';
       }
       if (isSelected) {
         return isWhite ? 'rgba(16, 185, 129, 0.6)' : 'rgba(5, 150, 105, 0.6)';
       }
-      return isWhite ? 'rgba(200, 200, 200, 0.3)' : 'rgba(100, 100, 100, 0.3)';
+      return isWhite ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.1)';
     };
 
-    const getFilter = () => {
-      if (isPressed) {
-        return 'drop-shadow(0 0 12px rgba(4, 120, 87, 1))';
-      }
-      if (isSelected) {
-        return 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.8))';
-      }
-      if (isHovered) {
-        return 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2))';
-      }
-      return 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1))';
+    const getStrokeWidth = () => {
+      if (isPressed) return '2';
+      if (isSelected) return '1.5';
+      return isWhite ? '1' : '0.5';
     };
 
     return (
-      <polygon
-        points={coordinates}
+      <path
+        d={coordinates}
         fill={getFillColor()}
         stroke={getStrokeColor()}
-        strokeWidth={0.12}
+        strokeWidth={getStrokeWidth()}
+        style={{
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          filter: isPressed ? 'brightness(0.9)' : 'none'
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          handleMouseDown(note);
+        }}
+        onMouseUp={(e) => {
+          e.preventDefault();
+          handleMouseUp(note);
+        }}
         onMouseEnter={() => setHoveredKey(note)}
         onMouseLeave={() => setHoveredKey(null)}
-        onMouseDown={() => handleMouseDown(note)}
-        onMouseUp={() => handleMouseUp(note)}
-        style={{ 
-          cursor: 'pointer',
-          transition: 'all 0.15s ease-out',
-          filter: getFilter(),
-          userSelect: 'none'
-        }}
       />
     );
   };
 
+  // ========================================================================================
+  // RENDER COMPONENT
+  // ========================================================================================
+
   return (
-    <div className="bg-black/60 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/10">
-      
-      {/* Información del patrón actual */}
+    <div className="w-full">
+      {/* Pattern Info */}
       {currentPattern && (
-        <div className="mb-4 p-4 bg-emerald-900/30 border border-emerald-700 rounded-lg">
-          <h3 className="text-emerald-300 font-semibold">
-            Patrón Actual: {currentPattern.tonic} {currentPattern.type}
-          </h3>
-          <p className="text-emerald-200 text-sm">
-            {currentPattern.category === 'chord' ? 'Acorde' : 'Escala'} en octava {currentPattern.octave}
+        <div className="mb-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded-lg">
+          <p className="text-emerald-300 font-medium">
+            🎵 {currentPattern.tonic} {currentPattern.type} - {currentPattern.category === 'chord' ? 'Acorde' : 'Escala'} en octava {currentPattern.octave}
           </p>
         </div>
       )}
 
-      {/* Indicador de sustain */}
+      {/* Sustain Indicator */}
       {sustainActive && (
         <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700 rounded-lg">
           <p className="text-blue-300 text-sm font-medium">
@@ -184,38 +204,42 @@ const PianoWrapper: React.FC<PianoWrapperProps> = ({
             }}
           >
             {/* Teclas blancas (renderizar primero) */}
-            {whiteKeys.map((keyCoord) => (
-              <PianoKey
-                key={`white-${keyCoord.note}`}
-                note={keyCoord.note}
-                coordinates={keyCoord.coordinates}
-                isWhite={true}
-              />
+            {whiteKeys.length > 0 && whiteKeys.map((keyCoord) => (
+              keyCoord && keyCoord.note ? (
+                <PianoKey
+                  key={`white-${keyCoord.note}`}
+                  note={keyCoord.note}
+                  coordinates={keyCoord.coordinates}
+                  isWhite={true}
+                />
+              ) : null
             ))}
             
             {/* Teclas negras (renderizar después) */}
-            {blackKeys.map((keyCoord) => (
-              <PianoKey
-                key={`black-${keyCoord.note}`}
-                note={keyCoord.note}
-                coordinates={keyCoord.coordinates}
-                isWhite={false}
-              />
+            {blackKeys.length > 0 && blackKeys.map((keyCoord) => (
+              keyCoord && keyCoord.note ? (
+                <PianoKey
+                  key={`black-${keyCoord.note}`}
+                  note={keyCoord.note}
+                  coordinates={keyCoord.coordinates}
+                  isWhite={false}
+                />
+              ) : null
             ))}
           </svg>
         </div>
       </div>
 
-      {/* Información de teclas activas */}
-      {(selectedKeys.size > 0 || pressedKeys.size > 0) && (
+      {/* Información de teclas activas - CON VERIFICACIONES */}
+      {((selectedKeys && selectedKeys.size > 0) || (pressedKeys && pressedKeys.size > 0)) && (
         <div className="mt-4 p-3 bg-gray-800/50 border border-gray-600 rounded-lg">
           <div className="flex flex-wrap gap-2 text-sm">
-            {selectedKeys.size > 0 && (
+            {selectedKeys && selectedKeys.size > 0 && (
               <div className="text-emerald-300">
                 Activas: {Array.from(selectedKeys).join(', ')}
               </div>
             )}
-            {pressedKeys.size > 0 && (
+            {pressedKeys && pressedKeys.size > 0 && (
               <div className="text-blue-300">
                 Presionadas: {Array.from(pressedKeys).join(', ')}
               </div>

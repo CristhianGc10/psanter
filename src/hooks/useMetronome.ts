@@ -1,8 +1,10 @@
 // src/hooks/useMetronome.ts
 /**
- * HOOK DEL METRÓNOMO - Control preciso de tempo con Tone.js
- * Temporización precisa, sonidos diferenciados, BPM dinámico y subdivisiones
- * Fase 5: Hooks Personalizados - VERSIÓN CORREGIDA
+ * HOOK DE METRÓNOMO - VERSIÓN COMPLETA PARA FASE 5
+ * ✅ Control preciso con Web Audio API y Tone.js
+ * ✅ Temporización exacta sin drift
+ * ✅ Sonidos diferenciados para acentos
+ * ✅ Control de BPM y subdivisiones
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
@@ -14,76 +16,49 @@ import * as Tone from 'tone';
 
 interface MetronomeState {
   isRunning: boolean;
-  bpm: number;
-  currentBeat: number;
-  totalBeats: number;
-  timeSignature: {
-    numerator: number;
-    denominator: number;
-  };
-  subdivision: 'quarter' | 'eighth' | 'sixteenth';
-  volume: number;
-  accentVolume: number;
   isInitialized: boolean;
-  nextBeatTime: number;
+  bpm: number;
+  beatsPerMeasure: number;
+  subdivision: number; // 1=quarter, 2=eighth, 4=sixteenth
+  currentBeat: number;
+  currentMeasure: number;
+  volume: number;
+  accentEnabled: boolean;
   error: string | null;
 }
 
 interface MetronomeControls {
   start: () => Promise<boolean>;
   stop: () => void;
-  toggle: () => Promise<boolean>;
-  setBPM: (bpm: number) => void;
-  setTimeSignature: (numerator: number, denominator: number) => void;
-  setSubdivision: (subdivision: 'quarter' | 'eighth' | 'sixteenth') => void;
-  setVolume: (volume: number) => void;
-  setAccentVolume: (volume: number) => void;
   reset: () => void;
+  setBPM: (bpm: number) => void;
+  setBeatsPerMeasure: (beats: number) => void;
+  setSubdivision: (subdivision: number) => void;
+  setVolume: (volume: number) => void;
+  setAccent: (enabled: boolean) => void;
   initialize: () => Promise<boolean>;
   cleanup: () => void;
 }
 
 interface MetronomeEvents {
-  onBeat?: (beat: number, isAccent: boolean, bpm: number) => void;
-  onMeasure?: (measure: number) => void;
+  onBeat?: (beat: number, measure: number, isAccent: boolean) => void;
   onStart?: () => void;
   onStop?: () => void;
 }
 
-interface BeatSound {
-  frequency: number;
-  duration: number;
-  volume: number;
-  waveform: OscillatorType;
-}
-
 // ========================================================================================
-// CONFIGURACIONES DE SONIDOS
+// CONSTANTES
 // ========================================================================================
 
-const BEAT_SOUNDS: Record<'accent' | 'normal' | 'subdivision', BeatSound> = {
-  accent: {
-    frequency: 1000,    // 1kHz - sonido más agudo para acentos
-    duration: 0.1,      // 100ms
-    volume: -6,         // -6dB
-    waveform: 'square'
-  },
-  normal: {
-    frequency: 800,     // 800Hz - sonido medio para beats normales
-    duration: 0.08,     // 80ms
-    volume: -12,        // -12dB
-    waveform: 'triangle'
-  },
-  subdivision: {
-    frequency: 600,     // 600Hz - sonido más grave para subdivisiones
-    duration: 0.06,     // 60ms
-    volume: -18,        // -18dB (más suave)
-    waveform: 'sine'
-  }
-};
+const DEFAULT_BPM = 120;
+const MIN_BPM = 40;
+const MAX_BPM = 300;
+const DEFAULT_BEATS_PER_MEASURE = 4;
+const LOOKAHEAD_TIME = 25.0; // milliseconds
+const SCHEDULE_AHEAD_TIME = 0.1; // seconds
 
 // ========================================================================================
-// HOOK PRINCIPAL useMetronome
+// 🔥 HOOK PRINCIPAL useMetronome
 // ========================================================================================
 
 export const useMetronome = (events?: MetronomeEvents): MetronomeState & MetronomeControls => {
@@ -91,455 +66,367 @@ export const useMetronome = (events?: MetronomeEvents): MetronomeState & Metrono
   // ========== ESTADO LOCAL ==========
   const [metronomeState, setMetronomeState] = useState<MetronomeState>({
     isRunning: false,
-    bpm: 120,
-    currentBeat: 0,
-    totalBeats: 0,
-    timeSignature: { numerator: 4, denominator: 4 },
-    subdivision: 'quarter',
-    volume: 0.7,
-    accentVolume: 0.9,
     isInitialized: false,
-    nextBeatTime: 0,
+    bpm: DEFAULT_BPM,
+    beatsPerMeasure: DEFAULT_BEATS_PER_MEASURE,
+    subdivision: 1,
+    currentBeat: 0,
+    currentMeasure: 1,
+    volume: 0.7,
+    accentEnabled: true,
     error: null
   });
 
-  // ========== REFS PARA TONE.JS Y TIMING ==========
-  const transportRef = useRef<typeof Tone.Transport | null>(null);
-  const synthRef = useRef<Tone.MembraneSynth | null>(null);
+  // ========== REFS CRÍTICOS ==========
+  const isMountedRef = useRef<boolean>(true);
+  const timerWorkerRef = useRef<Worker | null>(null);
+  const accentSynthRef = useRef<Tone.Synth | null>(null);
+  const beatSynthRef = useRef<Tone.Synth | null>(null);
   const volumeRef = useRef<Tone.Volume | null>(null);
-  const sequenceRef = useRef<Tone.Sequence | null>(null);
-  const lookAheadRef = useRef<number>(25); // ms de look-ahead
-  const scheduleIdRef = useRef<number | null>(null);
-  const measureCountRef = useRef<number>(1);
-  const cleanupFunctionsRef = useRef<(() => void)[]>([]);
+  
+  // Timing refs para precisión
+  const currentBeatRef = useRef<number>(0);
+  const currentMeasureRef = useRef<number>(1);
+  const nextNoteTimeRef = useRef<number>(0);
+  const isRunningRef = useRef<boolean>(false);
 
   // ========================================================================================
-  // UTILIDADES DE CÁLCULO TEMPORAL
+  // WORKER PARA TIMING PRECISO
   // ========================================================================================
 
-  const getSubdivisionMultiplier = useCallback((subdivision: string): number => {
-    switch (subdivision) {
-      case 'eighth': return 2;
-      case 'sixteenth': return 4;
-      default: return 1; // quarter note
-    }
-  }, []);
+  const createTimerWorker = useCallback((): Worker => {
+    const workerCode = `
+      let timerID = null;
+      let interval = 100;
 
-  const getBeatInterval = useCallback((bpm: number, subdivision: string): number => {
-    const quarterNoteMs = 60000 / bpm; // ms por quarter note
-    const multiplier = getSubdivisionMultiplier(subdivision);
-    return quarterNoteMs / multiplier;
-  }, [getSubdivisionMultiplier]);
-
-  const isAccentBeat = useCallback((beat: number, timeSignature: { numerator: number }): boolean => {
-    // Primer beat de cada compás es acento
-    return (beat % timeSignature.numerator) === 0;
-  }, []);
-
-  // ========================================================================================
-  // FUNCIONES DE INICIALIZACIÓN
-  // ========================================================================================
-
-  const initialize = useCallback(async (): Promise<boolean> => {
-    try {
-      console.log('🥁 Initializing metronome...');
-
-      // Verificar si ya está inicializado
-      if (synthRef.current && metronomeState.isInitialized) {
-        console.log('✅ Metronome already initialized');
-        return true;
-      }
-
-      // Asegurar que el contexto de audio esté iniciado
-      if (Tone.getContext().state === 'suspended') {
-        await Tone.start();
-      }
-
-      // 1. Crear sintetizador para el metrónomo (MembraneSynth es ideal para beats)
-      synthRef.current = new Tone.MembraneSynth({
-        pitchDecay: 0.05,
-        octaves: 10,
-        oscillator: {
-          type: 'sine'
-        },
-        envelope: {
-          attack: 0.001,
-          decay: 0.4,
-          sustain: 0.01,
-          release: 1.4,
-          attackCurve: 'exponential'
+      self.onmessage = function(e) {
+        if (e.data === "start") {
+          timerID = setInterval(function() {
+            self.postMessage("tick");
+          }, interval);
+        } else if (e.data.interval) {
+          interval = e.data.interval;
+          if (timerID) {
+            clearInterval(timerID);
+            timerID = setInterval(function() {
+              self.postMessage("tick");
+            }, interval);
+          }
+        } else if (e.data === "stop") {
+          clearInterval(timerID);
+          timerID = null;
         }
+      };
+    `;
+
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    return new Worker(URL.createObjectURL(blob));
+  }, []);
+
+  // ========================================================================================
+  // INICIALIZACIÓN DE AUDIO
+  // ========================================================================================
+
+  const initializeAudio = useCallback(async (): Promise<boolean> => {
+    try {
+      console.log('🥁 Initializing metronome audio...');
+
+      // Crear sintetizadores diferenciados
+      accentSynthRef.current = new Tone.Synth({
+        oscillator: { type: 'square' },
+        envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 }
       });
 
-      // 2. Crear control de volumen
-      volumeRef.current = new Tone.Volume(-10); // -10dB inicial
+      beatSynthRef.current = new Tone.Synth({
+        oscillator: { type: 'triangle' },
+        envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.05 }
+      });
 
-      // 3. Conectar cadena de audio
-      synthRef.current.connect(volumeRef.current);
+      // Crear volumen master
+      volumeRef.current = new Tone.Volume(-6);
+
+      // Conectar cadena de audio
+      accentSynthRef.current.connect(volumeRef.current);
+      beatSynthRef.current.connect(volumeRef.current);
       volumeRef.current.toDestination();
 
-      // 4. Configurar Transport (motor de timing de Tone.js)
-      transportRef.current = Tone.Transport;
-      Tone.Transport.bpm.value = metronomeState.bpm;
-      Tone.Transport.timeSignature = [
-        metronomeState.timeSignature.numerator,
-        metronomeState.timeSignature.denominator
-      ];
-
-      // 5. Configurar cleanup
-      setupCleanup();
-
-      // 6. Actualizar estado
-      setMetronomeState(prev => ({
-        ...prev,
-        isInitialized: true,
-        error: null
-      }));
-
-      console.log(`✅ Metronome initialized at ${metronomeState.bpm} BPM`);
+      console.log('✅ Metronome audio initialized');
       return true;
 
     } catch (error) {
-      console.error('❌ Metronome initialization failed:', error);
-      
-      setMetronomeState(prev => ({
-        ...prev,
-        isInitialized: false,
-        error: error instanceof Error ? error.message : 'Metronome initialization failed'
-      }));
-
+      console.error('❌ Metronome audio initialization failed:', error);
       return false;
     }
-  }, [metronomeState.isInitialized, metronomeState.bpm, metronomeState.timeSignature]);
+  }, []);
 
   // ========================================================================================
-  // FUNCIÓN DE REPRODUCCIÓN DE BEATS
+  // FUNCIONES DE SONIDO
   // ========================================================================================
 
-  const playBeat = useCallback((beatType: 'accent' | 'normal' | 'subdivision', when?: number) => {
-    if (!synthRef.current || !volumeRef.current) return;
-
-    const sound = BEAT_SOUNDS[beatType];
+  const playAccentBeat = useCallback((time: number): void => {
+    if (!accentSynthRef.current) return;
     
     try {
-      // Calcular volumen final basado en configuración
-      const baseVolume = beatType === 'accent' ? 
-        metronomeState.accentVolume : 
-        metronomeState.volume;
-      
-      const finalVolumeDb = sound.volume + (baseVolume * 20); // Convertir 0-1 a dB offset
-      
-      // Reproducir con timing preciso
-      const playTime = when || Tone.now();
-      synthRef.current.triggerAttackRelease(
-        sound.frequency,
-        sound.duration,
-        playTime,
-        finalVolumeDb
-      );
-
-      console.log(`🥁 Beat played: ${beatType} (${sound.frequency}Hz) at ${playTime.toFixed(3)}s`);
-
+      accentSynthRef.current.triggerAttackRelease('C6', '32n', time);
     } catch (error) {
-      console.error('❌ Failed to play beat:', error);
+      console.error('Error playing accent beat:', error);
     }
-  }, [metronomeState.volume, metronomeState.accentVolume]);
+  }, []);
 
-  // ========================================================================================
-  // MOTOR DE SCHEDULING PERSONALIZADO
-  // ========================================================================================
-
-  const scheduleNextBeats = useCallback(() => {
-    if (!metronomeState.isRunning || !transportRef.current) return;
-
-    const currentTime = Tone.now();
-    const beatInterval = getBeatInterval(metronomeState.bpm, metronomeState.subdivision) / 1000; // convertir a segundos
-    const subdivisionMultiplier = getSubdivisionMultiplier(metronomeState.subdivision);
-    const beatsPerMeasure = metronomeState.timeSignature.numerator * subdivisionMultiplier;
-
-    // Programar los próximos beats dentro del look-ahead window
-    let nextBeatTime = metronomeState.nextBeatTime;
-    const lookAheadTime = currentTime + (lookAheadRef.current / 1000);
-
-    while (nextBeatTime < lookAheadTime) {
-      const currentBeatInMeasure = metronomeState.currentBeat % beatsPerMeasure;
-      const isMainBeat = (currentBeatInMeasure % subdivisionMultiplier) === 0;
-      const beatNumber = Math.floor(currentBeatInMeasure / subdivisionMultiplier);
-      
-      let beatType: 'accent' | 'normal' | 'subdivision';
-      
-      if (isMainBeat) {
-        beatType = isAccentBeat(beatNumber, metronomeState.timeSignature) ? 'accent' : 'normal';
-      } else {
-        beatType = 'subdivision';
-      }
-
-      // Programar el beat
-      playBeat(beatType, nextBeatTime);
-
-      // Disparar eventos
-      if (isMainBeat) {
-        const isAccent = beatType === 'accent';
-        events?.onBeat?.(beatNumber + 1, isAccent, metronomeState.bpm);
-        
-        // Nuevo compás
-        if (isAccent && metronomeState.currentBeat > 0) {
-          measureCountRef.current++;
-          events?.onMeasure?.(measureCountRef.current);
-        }
-      }
-
-      // Avanzar al siguiente beat
-      nextBeatTime += beatInterval;
-      
-      setMetronomeState(prev => ({
-        ...prev,
-        currentBeat: prev.currentBeat + 1,
-        totalBeats: prev.totalBeats + 1,
-        nextBeatTime: nextBeatTime
-      }));
-    }
-
-    // Programar el siguiente scheduling
-    scheduleIdRef.current = window.setTimeout(scheduleNextBeats, lookAheadRef.current);
+  const playNormalBeat = useCallback((time: number): void => {
+    if (!beatSynthRef.current) return;
     
-  }, [
-    metronomeState.isRunning,
-    metronomeState.bpm,
-    metronomeState.subdivision,
-    metronomeState.timeSignature,
-    metronomeState.currentBeat,
-    metronomeState.nextBeatTime,
-    getBeatInterval,
-    getSubdivisionMultiplier,
-    isAccentBeat,
-    playBeat,
-    events
-  ]);
+    try {
+      beatSynthRef.current.triggerAttackRelease('C5', '32n', time);
+    } catch (error) {
+      console.error('Error playing normal beat:', error);
+    }
+  }, []);
 
   // ========================================================================================
-  // FUNCIONES DE CONTROL
+  // SCHEDULER PRECISO
+  // ========================================================================================
+
+  const scheduler = useCallback((): void => {
+    while (nextNoteTimeRef.current < Tone.now() + SCHEDULE_AHEAD_TIME) {
+      const isAccent = metronomeState.accentEnabled && (currentBeatRef.current % metronomeState.beatsPerMeasure === 0);
+      
+      // Programar el sonido
+      if (isAccent) {
+        playAccentBeat(nextNoteTimeRef.current);
+      } else {
+        playNormalBeat(nextNoteTimeRef.current);
+      }
+
+      // Disparar evento
+      events?.onBeat?.(currentBeatRef.current + 1, currentMeasureRef.current, isAccent);
+
+      // Actualizar estado de UI en el siguiente frame
+      if (isMountedRef.current) {
+        setTimeout(() => {
+          setMetronomeState(prev => ({
+            ...prev,
+            currentBeat: (currentBeatRef.current % prev.beatsPerMeasure) + 1,
+            currentMeasure: currentMeasureRef.current
+          }));
+        }, 0);
+      }
+
+      // Calcular siguiente beat
+      const secondsPerBeat = 60.0 / (metronomeState.bpm * metronomeState.subdivision);
+      nextNoteTimeRef.current += secondsPerBeat;
+      
+      currentBeatRef.current++;
+      if (currentBeatRef.current % metronomeState.beatsPerMeasure === 0) {
+        currentMeasureRef.current++;
+      }
+    }
+  }, [metronomeState.bpm, metronomeState.beatsPerMeasure, metronomeState.subdivision, metronomeState.accentEnabled, playAccentBeat, playNormalBeat, events]);
+
+  // ========================================================================================
+  // CONTROL DEL METRÓNOMO
   // ========================================================================================
 
   const start = useCallback(async (): Promise<boolean> => {
+    if (isRunningRef.current) return true;
+
     try {
-      if (!metronomeState.isInitialized) {
-        const initSuccess = await initialize();
-        if (!initSuccess) return false;
-      }
-
-      if (metronomeState.isRunning) {
-        console.log('⚠️ Metronome is already running');
-        return true;
-      }
-
-      // Asegurar que el contexto de audio esté activo
-      if (Tone.getContext().state === 'suspended') {
+      // Asegurar que Tone.js está iniciado
+      if (Tone.getContext().state !== 'running') {
         await Tone.start();
       }
 
-      // Configurar timing inicial
-      const currentTime = Tone.now();
-      const beatInterval = getBeatInterval(metronomeState.bpm, metronomeState.subdivision) / 1000;
-      
-      setMetronomeState(prev => ({
-        ...prev,
-        isRunning: true,
-        nextBeatTime: currentTime + beatInterval,
-        error: null
-      }));
+      // Inicializar audio si no está hecho
+      if (!metronomeState.isInitialized) {
+        const initialized = await initializeAudio();
+        if (!initialized) return false;
+      }
 
-      // Iniciar el motor de scheduling
-      scheduleNextBeats();
+      // Resetear timing
+      nextNoteTimeRef.current = Tone.now();
+      currentBeatRef.current = 0;
+      currentMeasureRef.current = 1;
+      isRunningRef.current = true;
 
-      // Disparar evento
+      // Crear worker si no existe
+      if (!timerWorkerRef.current) {
+        timerWorkerRef.current = createTimerWorker();
+        timerWorkerRef.current.onmessage = () => {
+          if (isRunningRef.current) {
+            scheduler();
+          }
+        };
+      }
+
+      // Iniciar worker
+      timerWorkerRef.current.postMessage({ interval: LOOKAHEAD_TIME });
+      timerWorkerRef.current.postMessage('start');
+
+      if (isMountedRef.current) {
+        setMetronomeState(prev => ({
+          ...prev,
+          isRunning: true,
+          isInitialized: true,
+          currentBeat: 1,
+          currentMeasure: 1,
+          error: null
+        }));
+      }
+
       events?.onStart?.();
-
       console.log(`🥁 Metronome started at ${metronomeState.bpm} BPM`);
       return true;
 
     } catch (error) {
-      console.error('❌ Failed to start metronome:', error);
+      console.error('❌ Metronome start failed:', error);
       
-      setMetronomeState(prev => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Failed to start metronome'
-      }));
-
+      if (isMountedRef.current) {
+        setMetronomeState(prev => ({
+          ...prev,
+          error: error instanceof Error ? error.message : 'Start failed'
+        }));
+      }
+      
       return false;
     }
-  }, [metronomeState.isInitialized, metronomeState.isRunning, metronomeState.bpm, initialize, getBeatInterval, scheduleNextBeats, events]);
+  }, [metronomeState.isInitialized, metronomeState.bpm, initializeAudio, createTimerWorker, scheduler, events]);
 
   const stop = useCallback((): void => {
-    // Detener scheduling
-    if (scheduleIdRef.current) {
-      clearTimeout(scheduleIdRef.current);
-      scheduleIdRef.current = null;
+    isRunningRef.current = false;
+
+    // Parar worker
+    if (timerWorkerRef.current) {
+      timerWorkerRef.current.postMessage('stop');
     }
 
-    // Actualizar estado
-    setMetronomeState(prev => ({
-      ...prev,
-      isRunning: false
-    }));
+    if (isMountedRef.current) {
+      setMetronomeState(prev => ({
+        ...prev,
+        isRunning: false
+      }));
+    }
 
-    // Disparar evento
     events?.onStop?.();
-
     console.log('🥁 Metronome stopped');
   }, [events]);
-
-  const toggle = useCallback(async (): Promise<boolean> => {
-    if (metronomeState.isRunning) {
-      stop();
-      return false;
-    } else {
-      return await start();
-    }
-  }, [metronomeState.isRunning, start, stop]);
 
   const reset = useCallback((): void => {
     stop();
     
-    setMetronomeState(prev => ({
-      ...prev,
-      currentBeat: 0,
-      totalBeats: 0,
-      nextBeatTime: 0
-    }));
-
-    measureCountRef.current = 1;
-
+    currentBeatRef.current = 0;
+    currentMeasureRef.current = 1;
+    
+    if (isMountedRef.current) {
+      setMetronomeState(prev => ({
+        ...prev,
+        currentBeat: 0,
+        currentMeasure: 1
+      }));
+    }
+    
     console.log('🥁 Metronome reset');
   }, [stop]);
 
   // ========================================================================================
-  // FUNCIONES DE CONFIGURACIÓN
+  // SETTERS
   // ========================================================================================
 
   const setBPM = useCallback((bpm: number): void => {
-    const clampedBPM = Math.max(40, Math.min(300, bpm));
+    const clampedBPM = Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(bpm)));
     
-    setMetronomeState(prev => ({ ...prev, bpm: clampedBPM }));
-    
-    if (transportRef.current) {
-      Tone.Transport.bpm.value = clampedBPM;
+    if (isMountedRef.current) {
+      setMetronomeState(prev => ({ ...prev, bpm: clampedBPM }));
     }
-
-    console.log(`🥁 BPM set to: ${clampedBPM}`);
+    
+    console.log(`🥁 BPM set to ${clampedBPM}`);
   }, []);
 
-  const setTimeSignature = useCallback((numerator: number, denominator: number): void => {
-    const validNumerator = Math.max(1, Math.min(16, numerator));
-    const validDenominator = [1, 2, 4, 8, 16].includes(denominator) ? denominator : 4;
+  const setBeatsPerMeasure = useCallback((beats: number): void => {
+    const clampedBeats = Math.max(1, Math.min(16, Math.round(beats)));
     
-    setMetronomeState(prev => ({
-      ...prev,
-      timeSignature: { numerator: validNumerator, denominator: validDenominator }
-    }));
-
-    if (transportRef.current) {
-      Tone.Transport.timeSignature = [validNumerator, validDenominator];
+    if (isMountedRef.current) {
+      setMetronomeState(prev => ({ ...prev, beatsPerMeasure: clampedBeats }));
     }
-
-    console.log(`🥁 Time signature set to: ${validNumerator}/${validDenominator}`);
   }, []);
 
-  const setSubdivision = useCallback((subdivision: 'quarter' | 'eighth' | 'sixteenth'): void => {
-    setMetronomeState(prev => ({ ...prev, subdivision }));
-    console.log(`🥁 Subdivision set to: ${subdivision} notes`);
+  const setSubdivision = useCallback((subdivision: number): void => {
+    const validSubdivisions = [1, 2, 4];
+    const clampedSubdivision = validSubdivisions.includes(subdivision) ? subdivision : 1;
+    
+    if (isMountedRef.current) {
+      setMetronomeState(prev => ({ ...prev, subdivision: clampedSubdivision }));
+    }
   }, []);
 
   const setVolume = useCallback((volume: number): void => {
     const clampedVolume = Math.max(0, Math.min(1, volume));
-    setMetronomeState(prev => ({ ...prev, volume: clampedVolume }));
     
     if (volumeRef.current) {
-      const volumeDb = -30 + (clampedVolume * 30); // -30dB a 0dB
-      volumeRef.current.volume.rampTo(volumeDb, 0.1);
+      const volumeDb = clampedVolume <= 0 ? -Infinity : -30 + (clampedVolume * 30);
+      volumeRef.current.volume.value = volumeDb;
     }
-
-    console.log(`🥁 Volume set to: ${(clampedVolume * 100).toFixed(0)}%`);
+    
+    if (isMountedRef.current) {
+      setMetronomeState(prev => ({ ...prev, volume: clampedVolume }));
+    }
   }, []);
 
-  const setAccentVolume = useCallback((volume: number): void => {
-    const clampedVolume = Math.max(0, Math.min(1, volume));
-    setMetronomeState(prev => ({ ...prev, accentVolume: clampedVolume }));
-    console.log(`🥁 Accent volume set to: ${(clampedVolume * 100).toFixed(0)}%`);
+  const setAccent = useCallback((enabled: boolean): void => {
+    if (isMountedRef.current) {
+      setMetronomeState(prev => ({ ...prev, accentEnabled: enabled }));
+    }
   }, []);
 
   // ========================================================================================
-  // CLEANUP
+  // INICIALIZACIÓN Y CLEANUP
   // ========================================================================================
 
-  const setupCleanup = useCallback(() => {
-    const cleanup = () => {
-      // Detener scheduling
-      if (scheduleIdRef.current) {
-        clearTimeout(scheduleIdRef.current);
-        scheduleIdRef.current = null;
-      }
-
-      // Limpiar Tone.js objects
-      if (synthRef.current) {
-        synthRef.current.dispose();
-        synthRef.current = null;
-      }
-
-      if (volumeRef.current) {
-        volumeRef.current.dispose();
-        volumeRef.current = null;
-      }
-
-      if (sequenceRef.current) {
-        sequenceRef.current.dispose();
-        sequenceRef.current = null;
-      }
-
-      console.log('🧹 Metronome cleanup completed');
-    };
-
-    cleanupFunctionsRef.current.push(cleanup);
-  }, []);
+  const initialize = useCallback(async (): Promise<boolean> => {
+    return await initializeAudio();
+  }, [initializeAudio]);
 
   const cleanup = useCallback((): void => {
-    cleanupFunctionsRef.current.forEach(fn => fn());
-    cleanupFunctionsRef.current = [];
+    isMountedRef.current = false;
     
-    setMetronomeState(prev => ({
-      ...prev,
-      isRunning: false,
-      isInitialized: false,
-      currentBeat: 0,
-      totalBeats: 0,
-      nextBeatTime: 0,
-      error: null
-    }));
-
-    measureCountRef.current = 1;
-  }, []);
+    // Parar metrónomo
+    stop();
+    
+    // Limpiar worker
+    if (timerWorkerRef.current) {
+      timerWorkerRef.current.terminate();
+      timerWorkerRef.current = null;
+    }
+    
+    // Limpiar audio
+    if (accentSynthRef.current) {
+      accentSynthRef.current.dispose();
+      accentSynthRef.current = null;
+    }
+    
+    if (beatSynthRef.current) {
+      beatSynthRef.current.dispose();
+      beatSynthRef.current = null;
+    }
+    
+    if (volumeRef.current) {
+      volumeRef.current.dispose();
+      volumeRef.current = null;
+    }
+    
+    console.log('🥁 Metronome cleanup completed');
+  }, [stop]);
 
   // ========================================================================================
   // EFFECTS
   // ========================================================================================
 
-  // Auto-inicialización
   useEffect(() => {
-    initialize();
+    isMountedRef.current = true;
     
-    return cleanup;
-  }, []); // Solo al montar/desmontar
-
-  // Actualizar Transport cuando cambia BPM o time signature
-  useEffect(() => {
-    if (transportRef.current) {
-      Tone.Transport.bpm.value = metronomeState.bpm;
-      Tone.Transport.timeSignature = [
-        metronomeState.timeSignature.numerator,
-        metronomeState.timeSignature.denominator
-      ];
-    }
-  }, [metronomeState.bpm, metronomeState.timeSignature]);
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
 
   // ========================================================================================
   // RETURN HOOK
@@ -547,28 +434,17 @@ export const useMetronome = (events?: MetronomeEvents): MetronomeState & Metrono
 
   return {
     // Estado
-    isRunning: metronomeState.isRunning,
-    bpm: metronomeState.bpm,
-    currentBeat: metronomeState.currentBeat,
-    totalBeats: metronomeState.totalBeats,
-    timeSignature: metronomeState.timeSignature,
-    subdivision: metronomeState.subdivision,
-    volume: metronomeState.volume,
-    accentVolume: metronomeState.accentVolume,
-    isInitialized: metronomeState.isInitialized,
-    nextBeatTime: metronomeState.nextBeatTime,
-    error: metronomeState.error,
+    ...metronomeState,
     
     // Controles
     start,
     stop,
-    toggle,
+    reset,
     setBPM,
-    setTimeSignature,
+    setBeatsPerMeasure,
     setSubdivision,
     setVolume,
-    setAccentVolume,
-    reset,
+    setAccent,
     initialize,
     cleanup
   };

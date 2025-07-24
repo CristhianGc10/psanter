@@ -1,8 +1,8 @@
 // src/hooks/usePiano.ts
 /**
- * HOOK MAESTRO DEL PIANO - Coordinación completa del sistema
- * Combina audio + keyboard + stores + lógica de sustain + coordinación mouse/teclado
- * Fase 5: Hooks Personalizados - VERSIÓN CORREGIDA
+ * HOOK MAESTRO DEL PIANO - VERSIÓN CORREGIDA PARA FASE 5
+ * ✅ Coordinación completa entre audio + keyboard + stores
+ * ✅ Props corregidas para interfaces
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
@@ -68,71 +68,47 @@ export const usePiano = (events?: PianoEvents): PianoState & PianoControls => {
     isInitialized: false,
     sustainActive: false,
     currentOctave: 4,
-    masterVolume: 0.8,
+    masterVolume: 0.7,
     totalActiveNotes: 0,
     lastInteractionSource: null,
     error: null
   });
 
-  // ========== REFS PARA COORDINACIÓN ==========
-  const sustainedNotesRef = useRef<Set<NoteName>>(new Set());
+  // ========== REFS CRÍTICOS ==========
+  const isMountedRef = useRef<boolean>(true);
   const activeNotesRef = useRef<Set<NoteName>>(new Set());
-  const lastNoteTimingsRef = useRef<Map<NoteName, number>>(new Map());
-  const pendingReleaseRef = useRef<Set<NoteName>>(new Set());
-
-  // ========== HOOKS DE AUDIO Y TECLADO ==========
+  const sustainedNotesRef = useRef<Set<NoteName>>(new Set());
+  
+  // ========== HOOKS DEPENDENCIES ==========
   const audio = useAudio();
+  
+  // ✅ HANDLERS ESTABLES para keyboard - Fixed forward reference
+  const handleKeyboardNote = useCallback((note: NoteName, velocity: number, pressed: boolean) => {
+    if (pressed) {
+      // Forward call to be defined later
+      void Promise.resolve().then(() => playNote(note, velocity, 'keyboard'));
+    } else {
+      // Forward call to be defined later  
+      setTimeout(() => stopNote(note, 'keyboard'), 0);
+    }
+  }, []); // Sin dependencies problemáticas
+
+  const handleSustainChange = useCallback((active: boolean) => {
+    setSustain(active);
+  }, []);
+
+  const handleOctaveChange = useCallback((octave: number) => {
+    setOctave(octave);
+  }, []);
+
   const keyboard = useKeyboard(
-    // Handler de notas del teclado
-    useCallback((note: NoteName, velocity: number, pressed: boolean) => {
-      if (pressed) {
-        playNote(note, velocity, 'keyboard');
-      } else {
-        stopNote(note, 'keyboard');
-      }
-    }, []),
-    
-    // Handler de sustain del teclado
-    useCallback((active: boolean) => {
-      setSustain(active);
-    }, []),
-    
-    // Handler de cambio de octava del teclado
-    useCallback((octave: number) => {
-      setOctave(octave);
-    }, [])
+    handleKeyboardNote,
+    handleSustainChange,
+    handleOctaveChange
   );
 
-  // ========== ZUSTAND STORES ==========
+  // ========== STORES ==========
   const pianoStore = usePianoStore();
-
-  // ========================================================================================
-  // LÓGICA DE SUSTAIN INTELIGENTE
-  // ========================================================================================
-
-  const updateSustainLogic = useCallback((noteToRelease?: NoteName, force?: boolean) => {
-    if (!pianoState.sustainActive && !force) return;
-
-    // Si el sustain está activo, las notas liberadas se mantienen sonando
-    if (pianoState.sustainActive) {
-      if (noteToRelease) {
-        sustainedNotesRef.current.add(noteToRelease);
-        console.log(`🎼 Note ${noteToRelease} sustained`);
-      }
-    } else {
-      // Si se desactiva el sustain, liberar todas las notas sustain
-      const sustainedNotes = Array.from(sustainedNotesRef.current);
-      sustainedNotesRef.current.clear();
-      
-      sustainedNotes.forEach(note => {
-        if (!pianoStore.isKeyPressed(note)) {
-          audio.stopNote(note);
-          activeNotesRef.current.delete(note);
-          console.log(`🎼 Released sustained note: ${note}`);
-        }
-      });
-    }
-  }, [pianoState.sustainActive, pianoStore, audio]);
 
   // ========================================================================================
   // FUNCIONES DE CONTROL DE NOTAS
@@ -144,153 +120,109 @@ export const usePiano = (events?: PianoEvents): PianoState & PianoControls => {
     source: 'mouse' | 'keyboard' | 'midi' = 'mouse'
   ): Promise<void> => {
     try {
-      // Verificar que el sistema esté listo
-      if (!audio.isInitialized) {
-        console.warn(`⚠️ Audio not ready, queueing note: ${note}`);
-        return;
-      }
-
-      // Prevenir ataques múltiples muy rápidos de la misma nota
-      const lastTiming = lastNoteTimingsRef.current.get(note);
-      const now = Date.now();
-      if (lastTiming && (now - lastTiming) < 50) {
-        console.log(`🎹 Debouncing rapid attack for ${note}`);
-        return;
-      }
-      lastNoteTimingsRef.current.set(note, now);
-
-      // Si la nota ya está sonando, primero la detenemos (re-trigger)
-      if (activeNotesRef.current.has(note)) {
-        audio.stopNote(note);
-        await new Promise(resolve => setTimeout(resolve, 10)); // Pequeña pausa
-      }
-
-      // Tocar la nota
+      // Tocar la nota con audio
       await audio.playNote(note, velocity);
       
-      // Actualizar referencias locales
+      // Actualizar estado
       activeNotesRef.current.add(note);
-      pendingReleaseRef.current.delete(note);
       
-      // Actualizar stores
-      pianoStore.pressKey(note, velocity, source);
+      // Actualizar store
+      pianoStore.setActiveNotes(Array.from(activeNotesRef.current));
       
-      // Actualizar estado local
-      setPianoState(prev => ({
-        ...prev,
-        totalActiveNotes: activeNotesRef.current.size,
-        lastInteractionSource: source,
-        error: null
-      }));
+      if (isMountedRef.current) {
+        setPianoState(prev => ({
+          ...prev,
+          totalActiveNotes: activeNotesRef.current.size,
+          lastInteractionSource: source
+        }));
+      }
 
       // Disparar evento
       events?.onNoteOn?.(note, velocity, source);
 
-      console.log(`🎹 Note ON: ${note} (vel: ${velocity.toFixed(2)}, src: ${source})`);
-
     } catch (error) {
-      console.error(`❌ Failed to play note ${note}:`, error);
-      setPianoState(prev => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Failed to play note'
-      }));
+      console.error('Error playing note:', error);
     }
-  }, [audio, pianoStore, events]);
+  }, [audio, events, pianoStore]);
 
   const stopNote = useCallback((
     note: NoteName, 
     source: 'mouse' | 'keyboard' | 'midi' = 'mouse'
   ): void => {
     try {
-      // Verificar que la nota esté activa
-      if (!activeNotesRef.current.has(note)) {
-        return;
-      }
-
-      // Lógica de sustain
-      if (pianoState.sustainActive) {
-        // Si hay sustain activo, marcar como "pending release" pero seguir sonando
-        pendingReleaseRef.current.add(note);
+      // Si está en sustain y es nota de teclado, mover a sustainedNotes
+      if (pianoState.sustainActive && source === 'keyboard') {
         sustainedNotesRef.current.add(note);
-        
-        console.log(`🎼 Note ${note} marked for sustain (src: ${source})`);
       } else {
-        // Liberar inmediatamente
+        // Parar la nota inmediatamente
         audio.stopNote(note);
-        activeNotesRef.current.delete(note);
-        pendingReleaseRef.current.delete(note);
-        
-        console.log(`🎹 Note OFF: ${note} (src: ${source})`);
+        sustainedNotesRef.current.delete(note);
       }
-
-      // Actualizar stores
-      pianoStore.releaseKey(note, source);
       
-      // Actualizar estado local
-      setPianoState(prev => ({
-        ...prev,
-        totalActiveNotes: activeNotesRef.current.size,
-        lastInteractionSource: source
-      }));
+      // Remover de notas activas
+      activeNotesRef.current.delete(note);
+      
+      // Actualizar store
+      pianoStore.setActiveNotes(Array.from(activeNotesRef.current));
+      
+      if (isMountedRef.current) {
+        setPianoState(prev => ({
+          ...prev,
+          totalActiveNotes: activeNotesRef.current.size,
+          lastInteractionSource: source
+        }));
+      }
 
       // Disparar evento
       events?.onNoteOff?.(note, source);
 
     } catch (error) {
-      console.error(`❌ Failed to stop note ${note}:`, error);
+      console.error('Error stopping note:', error);
     }
-  }, [pianoState.sustainActive, audio, pianoStore, events]);
+  }, [audio, pianoState.sustainActive, events, pianoStore]);
 
   const stopAllNotes = useCallback((): void => {
     try {
-      // Detener audio
+      // Parar todas las notas en audio
       audio.stopAllNotes();
       
-      // Limpiar referencias
+      // Limpiar sets de notas
       activeNotesRef.current.clear();
       sustainedNotesRef.current.clear();
-      pendingReleaseRef.current.clear();
-      lastNoteTimingsRef.current.clear();
       
-      // Limpiar stores
-      pianoStore.clearAll();
-      
-      // Actualizar estado
-      setPianoState(prev => ({
-        ...prev,
-        totalActiveNotes: 0,
-        sustainActive: false,
-        lastInteractionSource: null
-      }));
-
-      console.log('🎹 All notes stopped (PANIC)');
+      if (isMountedRef.current) {
+        setPianoState(prev => ({
+          ...prev,
+          totalActiveNotes: 0
+        }));
+      }
 
     } catch (error) {
-      console.error('❌ Failed to stop all notes:', error);
+      console.error('Error stopping all notes:', error);
     }
-  }, [audio, pianoStore]);
+  }, [audio]);
 
   // ========================================================================================
   // FUNCIONES DE CONTROL DE SUSTAIN
   // ========================================================================================
 
   const setSustain = useCallback((active: boolean): void => {
-    const wasActive = pianoState.sustainActive;
-    
-    setPianoState(prev => ({ ...prev, sustainActive: active }));
-    pianoStore.setSustain(active);
-    keyboard.setSustain(active);
-    
-    // Aplicar lógica de sustain
-    if (!active && wasActive) {
-      updateSustainLogic(undefined, true); // Force update cuando se desactiva
+    if (isMountedRef.current) {
+      setPianoState(prev => ({ ...prev, sustainActive: active }));
     }
-    
+
+    // Si se desactiva sustain, parar todas las notas sostenidas
+    if (!active && sustainedNotesRef.current.size > 0) {
+      sustainedNotesRef.current.forEach(note => {
+        audio.stopNote(note);
+      });
+      sustainedNotesRef.current.clear();
+    }
+
     // Disparar evento
     events?.onSustainChange?.(active);
-    
-    console.log(`🎼 Sustain ${active ? 'ON' : 'OFF'}`);
-  }, [pianoState.sustainActive, pianoStore, keyboard, updateSustainLogic, events]);
+
+  }, [audio, events]);
 
   const toggleSustain = useCallback((): void => {
     setSustain(!pianoState.sustainActive);
@@ -303,20 +235,19 @@ export const usePiano = (events?: PianoEvents): PianoState & PianoControls => {
   const setMasterVolume = useCallback((volume: number): void => {
     const clampedVolume = Math.max(0, Math.min(1, volume));
     
-    // Actualizar audio
+    // Aplicar al audio
     audio.setMasterVolume(clampedVolume);
     
-    // Actualizar stores
-    pianoStore.setMasterVolume(clampedVolume);
-    
     // Actualizar estado local
-    setPianoState(prev => ({ ...prev, masterVolume: clampedVolume }));
+    if (isMountedRef.current) {
+      setPianoState(prev => ({ ...prev, masterVolume: clampedVolume }));
+    }
     
     // Disparar evento
     events?.onVolumeChange?.(clampedVolume);
     
     console.log(`🔊 Master volume: ${(clampedVolume * 100).toFixed(0)}%`);
-  }, [audio, pianoStore, events]);
+  }, [audio, events]);
 
   const setOctave = useCallback((octave: number): void => {
     const clampedOctave = Math.max(1, Math.min(7, octave));
@@ -325,7 +256,9 @@ export const usePiano = (events?: PianoEvents): PianoState & PianoControls => {
     keyboard.setOctave(clampedOctave);
     
     // Actualizar estado local
-    setPianoState(prev => ({ ...prev, currentOctave: clampedOctave }));
+    if (isMountedRef.current) {
+      setPianoState(prev => ({ ...prev, currentOctave: clampedOctave }));
+    }
     
     // Disparar evento
     events?.onOctaveChange?.(clampedOctave);
@@ -346,11 +279,8 @@ export const usePiano = (events?: PianoEvents): PianoState & PianoControls => {
     // Resetear sustain
     setSustain(false);
     
-    // Limpiar teclado
-    keyboard.cleanup();
-    
     console.log('🚨 PANIC completed');
-  }, [stopAllNotes, setSustain, keyboard]);
+  }, [stopAllNotes, setSustain]);
 
   const initialize = useCallback(async (): Promise<boolean> => {
     try {
@@ -362,25 +292,18 @@ export const usePiano = (events?: PianoEvents): PianoState & PianoControls => {
         throw new Error('Failed to initialize audio');
       }
       
-      // 2. Inicializar stores
-      pianoStore.initialize();
-      
-      // 3. Sincronizar estado inicial
-      const currentVolume = pianoStore.masterVolume;
-      audio.setMasterVolume(currentVolume);
-      
-      // 4. Habilitar teclado
+      // 2. Habilitar teclado
       keyboard.enable();
       
-      // 5. Actualizar estado
-      setPianoState(prev => ({
-        ...prev,
-        isInitialized: true,
-        isReady: true,
-        masterVolume: currentVolume,
-        sustainActive: pianoStore.sustainActive,
-        error: null
-      }));
+      // 3. Actualizar estado
+      if (isMountedRef.current) {
+        setPianoState(prev => ({
+          ...prev,
+          isInitialized: true,
+          isReady: true,
+          error: null
+        }));
+      }
 
       console.log('✅ Piano system initialized successfully');
       return true;
@@ -388,102 +311,57 @@ export const usePiano = (events?: PianoEvents): PianoState & PianoControls => {
     } catch (error) {
       console.error('❌ Piano initialization failed:', error);
       
-      setPianoState(prev => ({
-        ...prev,
-        isInitialized: false,
-        isReady: false,
-        error: error instanceof Error ? error.message : 'Initialization failed'
-      }));
-
+      if (isMountedRef.current) {
+        setPianoState(prev => ({
+          ...prev,
+          isInitialized: false,
+          isReady: false,
+          error: error instanceof Error ? error.message : 'Initialization failed'
+        }));
+      }
+      
       return false;
     }
-  }, [audio, pianoStore, keyboard]);
+  }, [audio, keyboard]);
 
   const enable = useCallback((): void => {
     keyboard.enable();
-    setPianoState(prev => ({ ...prev, isReady: true }));
-    console.log('🎹 Piano enabled');
+    if (isMountedRef.current) {
+      setPianoState(prev => ({ ...prev, isReady: true }));
+    }
   }, [keyboard]);
 
   const disable = useCallback((): void => {
-    stopAllNotes();
     keyboard.disable();
-    setPianoState(prev => ({ ...prev, isReady: false }));
-    console.log('🎹 Piano disabled');
-  }, [stopAllNotes, keyboard]);
+    stopAllNotes();
+    if (isMountedRef.current) {
+      setPianoState(prev => ({ ...prev, isReady: false }));
+    }
+  }, [keyboard, stopAllNotes]);
 
   const cleanup = useCallback((): void => {
-    console.log('🧹 Piano cleanup starting...');
+    isMountedRef.current = false;
     
-    // Detener todo
+    // Parar todas las notas
     stopAllNotes();
     
-    // Cleanup hooks
-    audio.cleanup();
+    // Limpiar keyboard
     keyboard.cleanup();
     
-    // Limpiar referencias
-    activeNotesRef.current.clear();
-    sustainedNotesRef.current.clear();
-    pendingReleaseRef.current.clear();
-    lastNoteTimingsRef.current.clear();
-    
-    // Reset estado
-    setPianoState({
-      isReady: false,
-      isInitialized: false,
-      sustainActive: false,
-      currentOctave: 4,
-      masterVolume: 0.8,
-      totalActiveNotes: 0,
-      lastInteractionSource: null,
-      error: null
-    });
-
-    console.log('🧹 Piano cleanup completed');
-  }, [stopAllNotes, audio, keyboard]);
+    console.log('🎹 Piano cleanup completed');
+  }, [stopAllNotes, keyboard]);
 
   // ========================================================================================
-  // EFFECTS - SINCRONIZACIÓN Y AUTO-INICIALIZACIÓN
+  // EFFECTS
   // ========================================================================================
 
-  // Auto-inicialización cuando se monta el componente
   useEffect(() => {
-    initialize();
+    isMountedRef.current = true;
     
-    // Cleanup al desmontar
-    return cleanup;
-  }, []); // Solo al montar/desmontar
-
-  // Sincronización con cambios de sustain en el store
-  useEffect(() => {
-    const unsubscribe = usePianoStore.subscribe(
-      (state) => state.sustainActive,
-      (sustainActive) => {
-        if (sustainActive !== pianoState.sustainActive) {
-          setPianoState(prev => ({ ...prev, sustainActive }));
-          updateSustainLogic();
-        }
-      }
-    );
-
-    return unsubscribe;
-  }, [pianoState.sustainActive, updateSustainLogic]);
-
-  // Sincronización con cambios de volumen en el store
-  useEffect(() => {
-    const unsubscribe = usePianoStore.subscribe(
-      (state) => state.masterVolume,
-      (volume) => {
-        if (volume !== pianoState.masterVolume) {
-          setPianoState(prev => ({ ...prev, masterVolume: volume }));
-          audio.setMasterVolume(volume);
-        }
-      }
-    );
-
-    return unsubscribe;
-  }, [pianoState.masterVolume, audio]);
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
 
   // ========================================================================================
   // RETURN HOOK
@@ -491,29 +369,16 @@ export const usePiano = (events?: PianoEvents): PianoState & PianoControls => {
 
   return {
     // Estado
-    isReady: pianoState.isReady && audio.isInitialized,
-    isInitialized: pianoState.isInitialized,
-    sustainActive: pianoState.sustainActive,
-    currentOctave: pianoState.currentOctave,
-    masterVolume: pianoState.masterVolume,
-    totalActiveNotes: pianoState.totalActiveNotes,
-    lastInteractionSource: pianoState.lastInteractionSource,
-    error: pianoState.error,
+    ...pianoState,
     
-    // Controles de notas
+    // Controles
     playNote,
     stopNote,
     stopAllNotes,
-    
-    // Controles de sustain
     setSustain,
     toggleSustain,
-    
-    // Controles de volumen y octava
     setMasterVolume,
     setOctave,
-    
-    // Controles del sistema
     panic,
     initialize,
     enable,
